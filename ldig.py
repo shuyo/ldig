@@ -10,27 +10,9 @@ import optparse
 import numpy
 import htmlentitydefs
 import subprocess
+import da
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
-import da
-
-parser = optparse.OptionParser()
-parser.add_option("-m", dest="model", help="model directory")
-parser.add_option("--init", dest="init", help="initialize model", action="store_true")
-parser.add_option("--learning", dest="learning", help="do learninf", action="store_true")
-parser.add_option("--shrink", dest="shrink", help="remove irrevant features", action="store_true")
-parser.add_option("--debug", dest="debug", help="detect command line text for debug", action="store_true")
-
-# for initialization
-parser.add_option("--ff", dest="bound_feature_freq", help="threshold of feature frequency (for initialization)", type="int", default=8)
-parser.add_option("-n", dest="ngram_bound", help="n-gram upper bound (for initialization)", type="int", default=99999)
-
-# for learning
-parser.add_option("-e", "--eta", dest="eta", help="learning rate", type="float", default=0.1)
-parser.add_option("-r", "--regularity", dest="reg_const", help="regularization constant", type="float")
-parser.add_option("--wr", dest="n_whole_reg", help="number of whole regularizations", type="int", default=2)
-
-(options, args) = parser.parse_args()
 
 class Path(object):
     def __init__(self, model_dir):
@@ -38,27 +20,6 @@ class Path(object):
         self.labels = os.path.join(model_dir, 'labels.json')
         self.param = os.path.join(model_dir, 'parameters.npy')
         self.doublearray = os.path.join(model_dir, 'doublearray.npz')
-
-if not options.model:
-    parser.error("need model directory (-m)")
-path = Path(options.model)
-if options.init:
-    if os.path.exists(options.model):
-        #parser.error("model directory already exists")
-        pass
-    else:
-        os.mkdir(options.model)
-
-    if len(args) == 0:
-        parser.error("need corpus")
-else:
-    if not os.path.exists(path.features):
-        parser.error("features file doesn't exist")
-    if not os.path.exists(path.labels):
-        parser.error("labels file doesn't exist")
-    if not os.path.exists(path.param):
-        parser.error("parameters file doesn't exist")
-
 
 # load features
 def load_features(filename):
@@ -169,25 +130,19 @@ def normalize_text(org):
     return label, s, org
 
 # load courpus
-def load_corpus(filelist, labels, ignore=False):
+def load_corpus(filelist, labels):
+    idlist = dict((x, []) for x in labels)
     corpus = []
-    ignored_label = dict()
     for filename in filelist:
         f = codecs.open(filename, 'rb',  'utf-8')
         for i, s in enumerate(f):
             label, text, org_text = normalize_text(s)
             if label not in labels:
-                if ignore:
-                    if label not in ignored_label:
-                        sys.stderr.write("unknown label '%s' at %d in %s (ignore the later same labels)\n" % (label, i+1, filename))
-                        ignored_label[label] = True
-                    #continue
-                else:
-                    sys.exit("unknown label '%s' at %d in %s " % (label, i+1, filename))
-            corpus.append((label, u"\u0001"+text+u"\u0001", org_text))
-            #corpus.append((label, u" "+text+u" ", org_text))
+                sys.exit("unknown label '%s' at %d in %s " % (label, i+1, filename))
+            idlist[label].append(len(corpus))
+            corpus.append((label, text, org_text))
         f.close()
-    return corpus
+    return corpus, idlist
 
 # prediction probability
 def predict(param, events):
@@ -231,7 +186,7 @@ def inference(param, labels, trie, corpus, options):
     WHOLE_REG_INT = (N / options.n_whole_reg) + 1
     for m, target in enumerate(list):
         label, text, org_text = corpus[target]
-        events = trie.extract_features(text)
+        events = trie.extract_features(u"\u0001" + text + u"\u0001")
         label_k = labels.index(label)
 
         y = predict(param, events)
@@ -275,40 +230,7 @@ def inference(param, labels, trie, corpus, options):
     print "> # of relevant features = %d / %d" % (list.sum(), M)
 
 
-# inference and learning without regularization
-def inference_without_reg(param, labels, trie, corpus, options):
-    K = len(labels)
-    M = param.shape[0]
-    N = len(corpus)
-    eta = options.eta
-    corrects = numpy.zeros(K, dtype=int)
-    counts = numpy.zeros(K, dtype=int)
-
-    list = range(N)
-    numpy.random.shuffle(list)
-    for target in list:
-        label, text, org_text = corpus[target]
-        events = trie.extract_features(text)
-        label_k = labels.index(label)
-        y = predict(param, events)
-        predict_k = y.argmax()
-        counts[label_k] += 1
-        if label_k == predict_k: corrects[label_k] += 1
-
-        y[label_k] -= 1
-        y *= eta
-        for id in events:
-            param[id,] -= y * events.get(id, 0)
-
-    for lbl, crct, cnt in zip(labels, corrects, counts):
-        if cnt > 0:
-            print ">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt)
-    print "> total = %d / %d = %.2f" % (corrects.sum(), N, 100.0 * corrects.sum() / N)
-    list = (numpy.abs(param).sum(1) > 0.0000001)
-    print "> # of relevant features = %d / %d" % (list.sum(), M)
-
-
-def likelihood(param, labels, trie, corpus, options):
+def likelihood(param, labels, trie, filelist, options):
     K = len(labels)
     corrects = numpy.zeros(K, dtype=int)
     counts = numpy.zeros(K, dtype=int)
@@ -319,22 +241,31 @@ def likelihood(param, labels, trie, corpus, options):
 
     n_available_data = 0
     log_likely = 0.0
-    for label, text, org_text in corpus:
-        events = trie.extract_features(text)
-        y = predict(param, events)
-        predict_k = y.argmax()
+    for filename in filelist:
+        f = codecs.open(filename, 'rb',  'utf-8')
+        for i, s in enumerate(f):
+            label, text, org_text = normalize_text(s)
 
-        label_k = label_map.get(label, -1)
-        if label_k >= 0:
-            log_likely -= numpy.log(y[label_k])
-            n_available_data += 1
-            counts[label_k] += 1
-            if label_k == predict_k:
-                corrects[predict_k] += 1
+            if label not in label_map:
+                sys.stderr.write("WARNING : unknown label '%s' at %d in %s (ignore the later same labels)\n" % (label, i+1, filename))
+                label_map[label] = -1
+            label_k = label_map[label]
 
-        predict_lang = labels[predict_k]
-        if y[predict_k] < 0.5: predict_lang = ""
-        print "%s\t%s\t%s" % (label, predict_lang, org_text)
+            events = trie.extract_features(u"\u0001" + text + u"\u0001")
+            y = predict(param, events)
+            predict_k = y.argmax()
+
+            if label_k >= 0:
+                log_likely -= numpy.log(y[label_k])
+                n_available_data += 1
+                counts[label_k] += 1
+                if label_k == predict_k:
+                    corrects[predict_k] += 1
+
+            predict_lang = labels[predict_k]
+            if y[predict_k] < 0.6: predict_lang = ""
+            print "%s\t%s\t%s" % (label, predict_lang, org_text)
+        f.close()
 
     log_likely /= n_available_data
 
@@ -382,7 +313,9 @@ def init(path, temp_path, corpus_list, lbff, ngram_bound):
 
     print "generating max-substrings..."
     temp_features = path.features + ".temp"
-    subprocess.call(["./maxsubst.exe", temp_path, temp_features])
+    maxsubst = options.maxsubst
+    if os.name == 'nt': maxsubst += ".exe"
+    subprocess.call([maxsubst, temp_path, temp_features])
 
     # count features
     M = 0
@@ -408,13 +341,7 @@ def init(path, temp_path, corpus_list, lbff, ngram_bound):
 
     numpy.save(path.param, numpy.zeros((M, len(labels))))
 
-
-
-if options.init:
-    temp_path = os.path.join(options.model, 'temp')
-    init(path, temp_path, args, options.bound_feature_freq, options.ngram_bound)
-
-elif options.debug:
+def debug(path, args):
     features = load_features(path.features)
     trie = da.DoubleArray()
     trie.load(path.doublearray)
@@ -425,39 +352,80 @@ elif options.debug:
     for st in args:
         label, text, org_text = normalize_text(st)
         events = trie.extract_features(u"\u0001" + text + u"\u0001")
-        print st
-        print text
-        print events
+        print "orig: '%s'" % st
+        print "norm: '%s'" % text
         sum = numpy.zeros(len(labels))
+        print "id\tfeat\tfreq\t%s" % "\t".join(labels)
         for id in sorted(events, key=lambda id:features[id][0]):
             phi = param[id,]
             sum += phi * events[id]
-            print ("%s:%s" % features[id]), events[id], ",".join(["% 0.2f" % x for x in phi])
-        print sum
+            print "%d\t%s\t%d\t%s" % (id,features[id][0], events[id], "\t".join(["%0.2f" % x for x in phi]))
         exp_w = numpy.exp(sum - sum.max())
         prob = exp_w / exp_w.sum()
-        print " ".join(["%s:%0.3f" % x for x in zip(labels, prob)])
+        print "\t\t\t%s" % "\t".join(["%0.2f" % x for x in sum])
+        print "\t\t\t%s" % "\t".join(["%0.1f%%" % (x * 100) for x in prob])
 
 
-else:
-    with open(path.labels, 'rb') as f:
-        labels = json.load(f)
-    param = numpy.load(path.param)
+if __name__ == '__main__':
+    parser = optparse.OptionParser()
+    parser.add_option("-m", dest="model", help="model directory")
+    parser.add_option("--init", dest="init", help="initialize model", action="store_true")
+    parser.add_option("--learning", dest="learning", help="do learninf", action="store_true")
+    parser.add_option("--shrink", dest="shrink", help="remove irrevant features", action="store_true")
+    parser.add_option("--debug", dest="debug", help="detect command line text for debug", action="store_true")
 
-    #if model.K != len(labels) or model.M != len(features):
-    #    sys.exit("inconsistent between model and features(maxsubst)")
-    if options.shrink:
-        features = load_features(path.features)
-        shrink(param, features, path)
+    # for initialization
+    parser.add_option("--ff", dest="bound_feature_freq", help="threshold of feature frequency (for initialization)", type="int", default=8)
+    parser.add_option("-n", dest="ngram_bound", help="n-gram upper bound (for initialization)", type="int", default=99999)
+    parser.add_option("-x", dest="maxsubst", help="max substring extractor", default="./maxsubst")
+
+    # for learning
+    parser.add_option("-e", "--eta", dest="eta", help="learning rate", type="float", default=0.1)
+    parser.add_option("-r", "--regularity", dest="reg_const", help="regularization constant", type="float")
+    parser.add_option("--wr", dest="n_whole_reg", help="number of whole regularizations", type="int", default=2)
+
+    (options, args) = parser.parse_args()
+    if not options.model: parser.error("need model directory (-m)")
+
+    path = Path(options.model)
+    if options.init:
+        if not os.path.exists(options.model):
+            os.mkdir(options.model)
+        if len(args) == 0:
+            parser.error("need corpus")
     else:
-        trie = da.DoubleArray()
-        trie.load(path.doublearray)
+        if not os.path.exists(path.features):
+            parser.error("features file doesn't exist")
+        if not os.path.exists(path.labels):
+            parser.error("labels file doesn't exist")
+        if not os.path.exists(path.param):
+            parser.error("parameters file doesn't exist")
 
-        if options.learning:
-            corpus = load_corpus(args, labels)
-            inference(param, labels, trie, corpus, options)
-            numpy.save(path.param, param)
+    if options.init:
+        temp_path = os.path.join(options.model, 'temp')
+        init(path, temp_path, args, options.bound_feature_freq, options.ngram_bound)
+
+    elif options.debug:
+        debug(path, args)
+
+    else:
+        with open(path.labels, 'rb') as f:
+            labels = json.load(f)
+        param = numpy.load(path.param)
+
+        #if model.K != len(labels) or model.M != len(features):
+        #    sys.exit("inconsistent between model and features(maxsubst)")
+        if options.shrink:
+            features = load_features(path.features)
+            shrink(param, features, path)
         else:
-            corpus = load_corpus(args, labels, True)
-            log_likely = likelihood(param, labels, trie, corpus, options)
+            trie = da.DoubleArray()
+            trie.load(path.doublearray)
+
+            if options.learning:
+                corpus = load_corpus(args, labels)
+                inference(param, labels, trie, corpus, options)
+                numpy.save(path.param, param)
+            else:
+                log_likely = likelihood(param, labels, trie, args, options)
 
