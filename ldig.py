@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# LDIG : Language Detector with Infinite-Gram
+# ldig : Language Detector with Infinite-Gram
 # This code is available under the MIT License.
 # (c)2011 Nakatani Shuyo / Cybozu Labs Inc.
 
@@ -14,26 +14,152 @@ import da
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
 
-class Path(object):
+class ldig(object):
     def __init__(self, model_dir):
         self.features = os.path.join(model_dir, 'features')
         self.labels = os.path.join(model_dir, 'labels.json')
         self.param = os.path.join(model_dir, 'parameters.npy')
         self.doublearray = os.path.join(model_dir, 'doublearray.npz')
 
-# load features
-def load_features(filename):
-    features = []
-    with codecs.open(filename, 'r',  'utf-8') as f:
-        pre_feature = ""
-        for n, s in enumerate(f):
-            m = re.match(r'(.+)\t([0-9]+)', s)
-            if not m:
-                sys.exit("irregular feature : '%s' at %d" % (s, n + 1))
-            if pre_feature >= m.groups(1):
-                sys.exit("unordered feature : '%s' at %d" % (s, n + 1))
-            features.append(m.groups())
-    return features
+    def load_da(self):
+        trie = da.DoubleArray()
+        trie.load(self.doublearray)
+        return trie
+
+    def load_features(self):
+        features = []
+        with codecs.open(filename, 'r',  'utf-8') as f:
+            pre_feature = ""
+            for n, s in enumerate(f):
+                m = re.match(r'(.+)\t([0-9]+)', s)
+                if not m:
+                    sys.exit("irregular feature : '%s' at %d" % (s, n + 1))
+                if pre_feature >= m.groups(1):
+                    sys.exit("unordered feature : '%s' at %d" % (s, n + 1))
+                features.append(m.groups())
+        return features
+
+    def load_labels(self):
+        with open(self.labels, 'rb') as f:
+            return json.load(f)
+
+
+    def init(self, temp_path, corpus_list, lbff, ngram_bound):
+        """
+        Extract features from corpus and generate TRIE(DoubleArray) data
+        - load corpus
+        - generate temporary file for maxsubst
+        - generate double array and save it
+        - parameter: lbff = lower bound of feature frequency
+        """
+
+        labels = []
+        with codecs.open(temp_path, 'wb', 'utf-8') as f:
+            for file in corpus_list:
+                with codecs.open(file, 'rb', 'utf-8') as g:
+                    for i, s in enumerate(g):
+                        label, text, org_text =  normalize_text(s)
+                        if label is None or label == "":
+                            sys.stderr.write("no label data at %d in %s \n" % (i+1, file))
+                            continue
+                        if label not in labels:
+                            labels.append(label)
+                        f.write(text)
+                        f.write("\n")
+
+        labels.sort()
+        print "labels: %d" % len(labels)
+        with open(self.labels, 'wb') as f:
+            f.write(json.dumps(labels))
+
+        print "generating max-substrings..."
+        temp_features = self.features + ".temp"
+        maxsubst = options.maxsubst
+        if os.name == 'nt': maxsubst += ".exe"
+        subprocess.call([maxsubst, temp_path, temp_features])
+
+        # count features
+        M = 0
+        features = []
+        r1 = re.compile(u'.\u0001.')
+        r2 = re.compile(u'[A-Za-z\u00a1-\u00a3\u00bf-\u024f\u1e00-\u1eff]')
+        with codecs.open(temp_features, 'rb', 'utf-8') as f:
+            for line in f:
+                i = line.index('\t')
+                st = line[0:i]
+                c = int(line[i+1:-1])
+                if c >= lbff and len(st) <= ngram_bound and (not r1.search(st)) and r2.search(st) and (st[0] != u'\u0001' or st[-1] != u'\u0001'):
+                    M += 1
+                    features.append((st, line))
+        print "# of features = %d" % M
+
+        features.sort()
+        with codecs.open(self.features, 'wb', 'utf-8') as f:
+            for s in features:
+                f.write(s[1])
+
+        generate_doublearray(self.doublearray, [s[0] for s in features])
+
+        numpy.save(self.param, numpy.zeros((M, len(labels))))
+
+    def shrink(self):
+        features = load_features(self.features)
+        param = numpy.load(self.param)
+
+        list = (numpy.abs(param).sum(1) > 0.0000001)
+        new_param = param[list]
+        print "# of features : %d => %d" % (param.shape[0], new_param.shape[0])
+
+        numpy.save(self.param, new_param)
+        new_features = []
+        with codecs.open(self.features, 'wb',  'utf-8') as f:
+            for i, x in enumerate(list):
+                if x:
+                    f.write("%s\t%s\n" % features[i])
+                    new_features.append(features[i][0])
+
+        generate_doublearray(self.doublearray, new_features)
+
+    def debug(self, args):
+        features = load_features(self.features)
+        trie = self.load_da()
+        labels = self.load_labels()
+        param = numpy.load(self.param)
+
+        for st in args:
+            label, text, org_text = normalize_text(st)
+            events = trie.extract_features(u"\u0001" + text + u"\u0001")
+            print "orig: '%s'" % st
+            print "norm: '%s'" % text
+            sum = numpy.zeros(len(labels))
+            print "id\tfeat\tfreq\t%s" % "\t".join(labels)
+            for id in sorted(events, key=lambda id:features[id][0]):
+                phi = param[id,]
+                sum += phi * events[id]
+                print "%d\t%s\t%d\t%s" % (id,features[id][0], events[id], "\t".join(["%0.2f" % x for x in phi]))
+            exp_w = numpy.exp(sum - sum.max())
+            prob = exp_w / exp_w.sum()
+            print "\t\t\t%s" % "\t".join(["%0.2f" % x for x in sum])
+            print "\t\t\t%s" % "\t".join(["%0.1f%%" % (x * 100) for x in prob])
+
+    def learn(self, options, args):
+        trie = self.load_da()
+        param = numpy.load(self.param)
+        labels = self.load_labels()
+
+        corpus, idlist = load_corpus(args, labels)
+        inference(param, labels, trie, corpus, idlist, options)
+        numpy.save(self.param, param)
+
+    def detect(self, options, args):
+        trie = self.load_da()
+        param = numpy.load(self.param)
+        labels = self.load_labels()
+
+        log_likely = likelihood(param, labels, trie, args, options)
+
+
+
 
 # from http://www.programming-magic.com/20080820002254/
 reference_regex = re.compile(u'&(#x?[0-9a-f]+|[a-z]+);', re.IGNORECASE)
@@ -60,6 +186,7 @@ def htmlentity2unicode(text):
             result += unichr(int(name[1:]))
     return result
 
+
 def remove_facemark(text):
     """normalization for twitter"""
     text = re.sub(r'(^| )[:;][\(\)DOPop]($| )', ' ', text)
@@ -67,6 +194,7 @@ def remove_facemark(text):
     text = re.sub(r'([hj][aieo])\1{2,}', r'\1\1', text, re.IGNORECASE)
     text = re.sub(r' via *$', '', text)
     return text
+
 
 re_ignore_i = re.compile(r'[^I]')
 vietnamese_norm = {
@@ -129,6 +257,7 @@ def normalize_text(org):
     s = re_symbol_cont.sub(r'\1', s)
     return label, s, org
 
+
 # load courpus
 def load_corpus(filelist, labels):
     idlist = dict((x, []) for x in labels)
@@ -144,32 +273,36 @@ def load_corpus(filelist, labels):
         f.close()
     return corpus, idlist
 
+
+def shuffle(idlist):
+    n = max(len(idlist[lang]) for lang in idlist)
+    list = []
+    for lang in idlist:
+        text_ids = idlist[lang]
+        n_text = len(text_ids)
+        list += text_ids * (n / n_text)
+        numpy.random.shuffle(text_ids)
+        list += text_ids[:n % n_text]
+    numpy.random.shuffle(list)
+    return list
+
+
+
 # prediction probability
 def predict(param, events):
     sum_w = numpy.dot(param[events.keys(),].T, events.values())
     exp_w = numpy.exp(sum_w - sum_w.max())
     return exp_w / exp_w.sum()
 
-def shrink(param, features, path):
-    list = (numpy.abs(param).sum(1) > 0.0000001)
-    new_param = param[list]
-    print "# of features : %d => %d" % (param.shape[0], new_param.shape[0])
-
-    numpy.save(path.param, new_param)
-    new_features = []
-    with codecs.open(path.features, 'wb',  'utf-8') as f:
-        for i, x in enumerate(list):
-            if x:
-                f.write("%s\t%s\n" % features[i])
-                new_features.append(features[i][0])
-
-    generate_doublearray(path.doublearray, new_features)
 
 # inference and learning
-def inference(param, labels, trie, corpus, options):
+def inference(param, labels, trie, corpus, idlist, options):
     K = len(labels)
     M = param.shape[0]
-    N = len(corpus)
+
+    list = shuffle(idlist)
+    N = len(list)
+    WHOLE_REG_INT = (N / options.n_whole_reg) + 1
 
     # learning rate
     eta = options.eta
@@ -180,10 +313,6 @@ def inference(param, labels, trie, corpus, options):
 
     corrects = numpy.zeros(K, dtype=int)
     counts = numpy.zeros(K, dtype=int)
-
-    list = range(N)
-    numpy.random.shuffle(list)
-    WHOLE_REG_INT = (N / options.n_whole_reg) + 1
     for m, target in enumerate(list):
         label, text, org_text = corpus[target]
         events = trie.extract_features(u"\u0001" + text + u"\u0001")
@@ -214,13 +343,21 @@ def inference(param, labels, trie, corpus, options):
                 for j in xrange(K):
                     w = param[id, j]
                     if w > 0:
-                        u = uk + penalties[id,j]
-                        param[id, j] = w - u if w - u > 0 else 0
-                        penalties[id, j] += param[id, j] - w
+                        w1 = w - uk - penalties[id, j]
+                        if w1 > 0:
+                            param[id, j] = w1
+                            penalties[id, j] += w1 - w
+                        else:
+                            param[id, j] = 0
+                            penalties[id, j] -= w
                     elif w < 0:
-                        u = - uk + penalties[id,j]
-                        param[id, j] = w - u if w - u < 0 else 0
-                        penalties[id, j] += param[id, j] - w
+                        w1 = w + uk - penalties[id, j]
+                        if w1 < 0:
+                            param[id, j] = w1
+                            penalties[id, j] += w1 - w
+                        else:
+                            param[id, j] = 0
+                            penalties[id, j] -= w
 
     for lbl, crct, cnt in zip(labels, corrects, counts):
         if cnt > 0:
@@ -267,13 +404,14 @@ def likelihood(param, labels, trie, filelist, options):
             print "%s\t%s\t%s" % (label, predict_lang, org_text)
         f.close()
 
-    log_likely /= n_available_data
+    if n_available_data > 0:
+        log_likely /= n_available_data
 
-    for lbl, crct, cnt in zip(labels, corrects, counts):
-        if cnt > 0:
-            print ">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt)
-    print "> total = %d / %d = %.2f" % (corrects.sum(), n_available_data, 100.0 * corrects.sum() / n_available_data)
-    print "> average negative log likelihood = %.3f" % log_likely
+        for lbl, crct, cnt in zip(labels, corrects, counts):
+            if cnt > 0:
+                print ">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt)
+        print "> total = %d / %d = %.2f" % (corrects.sum(), n_available_data, 100.0 * corrects.sum() / n_available_data)
+        print "> average negative log likelihood = %.3f" % log_likely
 
     return log_likely
 
@@ -283,87 +421,7 @@ def generate_doublearray(file, features):
     trie.initialize(features)
     trie.save(file)
 
-def init(path, temp_path, corpus_list, lbff, ngram_bound):
-    """
-    Extract features from corpus and generate TRIE(DoubleArray) data
-    - load corpus
-    - generate temporary file for maxsubst
-    - generate double array and save it
-    - parameter: lbff = lower bound of feature frequency
-    """
 
-    labels = []
-    with codecs.open(temp_path, 'wb', 'utf-8') as f:
-        for file in corpus_list:
-            with codecs.open(file, 'rb', 'utf-8') as g:
-                for i, s in enumerate(g):
-                    label, text, org_text =  normalize_text(s)
-                    if label is None or label == "":
-                        sys.stderr.write("no label data at %d in %s \n" % (i+1, file))
-                        continue
-                    if label not in labels:
-                        labels.append(label)
-                    f.write(text)
-                    f.write("\n")
-
-    labels.sort()
-    print "labels: %d" % len(labels)
-    with open(path.labels, 'wb') as f:
-        f.write(json.dumps(labels))
-
-    print "generating max-substrings..."
-    temp_features = path.features + ".temp"
-    maxsubst = options.maxsubst
-    if os.name == 'nt': maxsubst += ".exe"
-    subprocess.call([maxsubst, temp_path, temp_features])
-
-    # count features
-    M = 0
-    features = []
-    r1 = re.compile(u'.\u0001.')
-    r2 = re.compile(u'[A-Za-z\u00a1-\u00a3\u00bf-\u024f\u1e00-\u1eff]')
-    with codecs.open(temp_features, 'rb', 'utf-8') as f:
-        for line in f:
-            i = line.index('\t')
-            st = line[0:i]
-            c = int(line[i+1:-1])
-            if c >= lbff and len(st) <= ngram_bound and (not r1.search(st)) and r2.search(st) and (st[0] != u'\u0001' or st[-1] != u'\u0001'):
-                M += 1
-                features.append((st, line))
-    print "# of features = %d" % M
-
-    features.sort()
-    with codecs.open(path.features, 'wb', 'utf-8') as f:
-        for s in features:
-            f.write(s[1])
-
-    generate_doublearray(path.doublearray, [s[0] for s in features])
-
-    numpy.save(path.param, numpy.zeros((M, len(labels))))
-
-def debug(path, args):
-    features = load_features(path.features)
-    trie = da.DoubleArray()
-    trie.load(path.doublearray)
-    with open(path.labels, 'rb') as f:
-        labels = json.load(f)
-    param = numpy.load(path.param)
-
-    for st in args:
-        label, text, org_text = normalize_text(st)
-        events = trie.extract_features(u"\u0001" + text + u"\u0001")
-        print "orig: '%s'" % st
-        print "norm: '%s'" % text
-        sum = numpy.zeros(len(labels))
-        print "id\tfeat\tfreq\t%s" % "\t".join(labels)
-        for id in sorted(events, key=lambda id:features[id][0]):
-            phi = param[id,]
-            sum += phi * events[id]
-            print "%d\t%s\t%d\t%s" % (id,features[id][0], events[id], "\t".join(["%0.2f" % x for x in phi]))
-        exp_w = numpy.exp(sum - sum.max())
-        prob = exp_w / exp_w.sum()
-        print "\t\t\t%s" % "\t".join(["%0.2f" % x for x in sum])
-        print "\t\t\t%s" % "\t".join(["%0.1f%%" % (x * 100) for x in prob])
 
 
 if __name__ == '__main__':
@@ -387,45 +445,35 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
     if not options.model: parser.error("need model directory (-m)")
 
-    path = Path(options.model)
+
+    detector = ldig(options.model)
     if options.init:
         if not os.path.exists(options.model):
             os.mkdir(options.model)
         if len(args) == 0:
             parser.error("need corpus")
     else:
-        if not os.path.exists(path.features):
+        if not os.path.exists(detector.features):
             parser.error("features file doesn't exist")
-        if not os.path.exists(path.labels):
+        if not os.path.exists(detector.labels):
             parser.error("labels file doesn't exist")
-        if not os.path.exists(path.param):
+        if not os.path.exists(detector.param):
             parser.error("parameters file doesn't exist")
+
 
     if options.init:
         temp_path = os.path.join(options.model, 'temp')
-        init(path, temp_path, args, options.bound_feature_freq, options.ngram_bound)
+        detector.init(temp_path, args, options.bound_feature_freq, options.ngram_bound)
 
     elif options.debug:
-        debug(path, args)
+        detector.debug(args)
+
+    elif options.shrink:
+        detector.shrink()
+
+    elif options.learning:
+        detector.learn(options, args)
 
     else:
-        with open(path.labels, 'rb') as f:
-            labels = json.load(f)
-        param = numpy.load(path.param)
-
-        #if model.K != len(labels) or model.M != len(features):
-        #    sys.exit("inconsistent between model and features(maxsubst)")
-        if options.shrink:
-            features = load_features(path.features)
-            shrink(param, features, path)
-        else:
-            trie = da.DoubleArray()
-            trie.load(path.doublearray)
-
-            if options.learning:
-                corpus = load_corpus(args, labels)
-                inference(param, labels, trie, corpus, options)
-                numpy.save(path.param, param)
-            else:
-                log_likely = likelihood(param, labels, trie, args, options)
+        detector.detect(options, args)
 
