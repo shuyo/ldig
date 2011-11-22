@@ -28,7 +28,7 @@ class ldig(object):
 
     def load_features(self):
         features = []
-        with codecs.open(filename, 'r',  'utf-8') as f:
+        with codecs.open(self.features, 'rb',  'utf-8') as f:
             pre_feature = ""
             for n, s in enumerate(f):
                 m = re.match(r'(.+)\t([0-9]+)', s)
@@ -36,6 +36,7 @@ class ldig(object):
                     sys.exit("irregular feature : '%s' at %d" % (s, n + 1))
                 if pre_feature >= m.groups(1):
                     sys.exit("unordered feature : '%s' at %d" % (s, n + 1))
+                pre_feature = m.groups(1)
                 features.append(m.groups())
         return features
 
@@ -103,7 +104,7 @@ class ldig(object):
         numpy.save(self.param, numpy.zeros((M, len(labels))))
 
     def shrink(self):
-        features = load_features(self.features)
+        features = self.load_features()
         param = numpy.load(self.param)
 
         list = (numpy.abs(param).sum(1) > 0.0000001)
@@ -121,7 +122,7 @@ class ldig(object):
         generate_doublearray(self.doublearray, new_features)
 
     def debug(self, args):
-        features = load_features(self.features)
+        features = self.load_features()
         trie = self.load_da()
         labels = self.load_labels()
         param = numpy.load(self.param)
@@ -147,8 +148,12 @@ class ldig(object):
         param = numpy.load(self.param)
         labels = self.load_labels()
 
+        import time
+        print "loading corpus... " + time.strftime("%H:%M:%S", time.localtime())
         corpus, idlist = load_corpus(args, labels)
-        inference(param, labels, trie, corpus, idlist, options)
+        print "inference... " + time.strftime("%H:%M:%S", time.localtime())
+        inference(param, labels, corpus, idlist, trie, options)
+        print "finish... " + time.strftime("%H:%M:%S", time.localtime())
         numpy.save(self.param, param)
 
     def detect(self, options, args):
@@ -296,7 +301,7 @@ def predict(param, events):
 
 
 # inference and learning
-def inference(param, labels, trie, corpus, idlist, options):
+def inference(param, labels, corpus, idlist, trie, options):
     K = len(labels)
     M = param.shape[0]
 
@@ -331,15 +336,14 @@ def inference(param, labels, trie, corpus, idlist, options):
         y[label_k] -= 1
         y *= eta
 
-        indexes = events
-        if options.reg_const and (N - m) % WHOLE_REG_INT == 1:
-            print "full regularization: %d / %d" % (m, N)
-            indexes = xrange(M)
-        for id in indexes:
-            param[id,] -= y * events.get(id, 0) # learning
+        if options.reg_const:
+            indexes = events
+            if (N - m) % WHOLE_REG_INT == 1:
+                print "full regularization: %d / %d" % (m, N)
+                indexes = xrange(M)
+            for id in indexes:
+                if id in events: param[id,] -= y * events[id]
 
-            # regularization
-            if options.reg_const:
                 for j in xrange(K):
                     w = param[id, j]
                     if w > 0:
@@ -358,6 +362,9 @@ def inference(param, labels, trie, corpus, idlist, options):
                         else:
                             param[id, j] = 0
                             penalties[id, j] -= w
+        else:
+            for id, freq in events.iteritems():
+                param[id,] -= y * freq
 
     for lbl, crct, cnt in zip(labels, corrects, counts):
         if cnt > 0:
