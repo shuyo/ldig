@@ -192,11 +192,12 @@ def htmlentity2unicode(text):
     return result
 
 
-def remove_facemark(text):
+def normalize_twitter(text):
     """normalization for twitter"""
-    text = re.sub(r'(^| )[:;][\(\)DOPop]($| )', ' ', text)
+    text = re.sub(r'(@|#|https?:\/\/)[^ ]+', '', text)
+    text = re.sub(r'(^| )[:;][\(\)DOPop]($| )', ' ', text)  # facemark
     text = re.sub(r'(^| )RT[ :]', ' ', text)
-    text = re.sub(r'([hj][aieo])\1{2,}', r'\1\1', text, re.IGNORECASE)
+    text = re.sub(r'([hj][aieo])\1{2,}', r'\1\1', text, re.IGNORECASE)  # laugh
     text = re.sub(r' via *$', '', text)
     return text
 
@@ -253,7 +254,7 @@ def normalize_text(org):
     s = re.sub(u'[^\u0020-\u007e\u00a1-\u024f\u0300-\u036f\u1e00-\u1eff]+', ' ', s)
     s = re.sub(u'  +', ' ', s).strip()
 
-    s = remove_facemark(s)
+    s = normalize_twitter(s)
 
     s = re_vietnamese.sub(lambda x:vietnamese_norm[x.group(0)], s)
     s = re_ignore_i.sub(lambda x:x.group(0).lower(), s)
@@ -435,7 +436,7 @@ if __name__ == '__main__':
     parser = optparse.OptionParser()
     parser.add_option("-m", dest="model", help="model directory")
     parser.add_option("--init", dest="init", help="initialize model", action="store_true")
-    parser.add_option("--learning", dest="learning", help="do learninf", action="store_true")
+    parser.add_option("--learning", dest="learning", help="learn model", action="store_true")
     parser.add_option("--shrink", dest="shrink", help="remove irrevant features", action="store_true")
     parser.add_option("--debug", dest="debug", help="detect command line text for debug", action="store_true")
 
