@@ -11,7 +11,6 @@ import numpy
 import htmlentitydefs
 import subprocess
 import da
-sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
 
 class ldig(object):
@@ -343,26 +342,28 @@ def inference(param, labels, corpus, idlist, trie, options):
                 print "full regularization: %d / %d" % (m, N)
                 indexes = xrange(M)
             for id in indexes:
-                if id in events: param[id,] -= y * events[id]
+                prm = param[id]
+                pnl = penalties[id]
+                if id in events: prm -= y * events[id]
 
                 for j in xrange(K):
-                    w = param[id, j]
+                    w = prm[j]
                     if w > 0:
-                        w1 = w - uk - penalties[id, j]
+                        w1 = w - uk - pnl[j]
                         if w1 > 0:
-                            param[id, j] = w1
-                            penalties[id, j] += w1 - w
+                            prm[j] = w1
+                            pnl[j] += w1 - w
                         else:
-                            param[id, j] = 0
-                            penalties[id, j] -= w
+                            prm[j] = 0
+                            pnl[j] -= w
                     elif w < 0:
-                        w1 = w + uk - penalties[id, j]
+                        w1 = w + uk - pnl[j]
                         if w1 < 0:
-                            param[id, j] = w1
-                            penalties[id, j] += w1 - w
+                            prm[j] = w1
+                            pnl[j] += w1 - w
                         else:
-                            param[id, j] = 0
-                            penalties[id, j] -= w
+                            prm[j] = 0
+                            pnl[j] -= w
         else:
             for id, freq in events.iteritems():
                 param[id,] -= y * freq
@@ -380,9 +381,7 @@ def likelihood(param, labels, trie, filelist, options):
     corrects = numpy.zeros(K, dtype=int)
     counts = numpy.zeros(K, dtype=int)
 
-    label_map = dict()
-    for i, label in enumerate(labels):
-        label_map[label] = i
+    label_map = dict((x, i) for i, x in enumerate(labels))
 
     n_available_data = 0
     log_likely = 0.0
@@ -433,6 +432,8 @@ def generate_doublearray(file, features):
 
 
 if __name__ == '__main__':
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+
     parser = optparse.OptionParser()
     parser.add_option("-m", dest="model", help="model directory")
     parser.add_option("--init", dest="init", help="initialize model", action="store_true")

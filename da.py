@@ -145,20 +145,20 @@ class DoubleArray(object):
 
     def extract_features(self, st):
         events = dict()
-        pointers = []
-        for c in iter(st):
-            v = ord(c)
-            pointers.append(0)
-            new_pointers = []
-            for pointer in pointers:
-                next = self.base[pointer] + v
-                if next < self.N and self.check[next] == pointer:
-                    new_pointers.append(next)
-                    id = self.value[next]
-                    if id >= 0:
-                        events[id] = events.get(id, 0) + 1
-            pointers = new_pointers
+        l = len(st)
+        clist = [ord(c) for c in iter(st)]
+        N = self.N
+        base = self.base
+        check = self.check
+        value = self.value
+        for i in xrange(l):
+            pointer = 0
+            for j in xrange(i, l):
+                next = base[pointer] + clist[j]
+                if next >= N or check[next] != pointer: break
+                id = value[next]
+                if id >= 0:
+                    events[id] = events.get(id, 0) + 1
+                pointer = next
         return events
-
-
 
