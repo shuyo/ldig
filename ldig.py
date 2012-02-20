@@ -247,7 +247,12 @@ def normalize_text(org):
         label, org = m.groups()
     else:
         label = ""
-    s = htmlentity2unicode(org)
+    m = re.search(r'\t([^\t]+)$', org)
+    if m:
+        s = m.group(0)
+    else:
+        s = org
+    s = htmlentity2unicode(s)
     s = re.sub(u'[\u2010-\u2015]', '-', s)
     s = re.sub(u'[0-9]+', '0', s)
     s = re.sub(u'[^\u0020-\u007e\u00a1-\u024f\u0300-\u036f\u1e00-\u1eff]+', ' ', s)
@@ -485,4 +490,7 @@ if __name__ == '__main__':
 
     else:
         detector.detect(options, args)
+        #import cProfile
+        #cProfile.runctx('detector.detect(options, args)', globals(), locals(), 'ldig.profile')
+
 
