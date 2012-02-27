@@ -1,0 +1,38 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script type="text/javascript" src="jquery-1.7.1.min.js"></script>
+<title>ldig server</title>
+</head>
+<body>
+
+<textarea id="detectText" cols="40" rows="4">
+I am a pen.
+</textarea>
+<input id="detectButton" type="button" value="detect"/>
+
+<table id="myTable" class="tablesorter">
+<thead id="tableHead"></thead>
+<tbody id="tableBody"></tbody>
+</table>
+
+<script lang="text/javascript">
+$(document).ready(function() { 
+	$("#detectButton").click(function(){
+		$.getJSON('/detect?text=' + encodeURIComponent($("#detectText").val()), function(data, textStatus, jqXHR){
+			var head = $("<tr/>")
+			$("#tableHead").append(head);
+			head.append($("<th/>").text("id"));
+			head.append($("<th/>").text("text"));
+			var labels = data["labels"];
+			for (var i=0;i<labels.length;++i) {
+				head.append($("<th/>").text(labels[i]));
+			}
+		});
+	});
+});
+</script>
+
+
+</body>
+</html>
