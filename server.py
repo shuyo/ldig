@@ -52,7 +52,6 @@ class LdigServerHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         localpath = basedir + path
         if path == "/detect":
             params = urlparse.parse_qs(url.query)
-            print params
             json.dump(detector.detect(params['text'][0]), self.wfile)
         elif os.path.exists(localpath):
             self.send_response(200)
