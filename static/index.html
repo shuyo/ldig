@@ -1,15 +1,21 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<script type="text/javascript" src="jquery-1.7.1.min.js"></script>
 <title>ldig server</title>
+<script type="text/javascript" src="jquery-1.7.1.min.js"></script>
+<style type="text/css">
+table { border-collapse: collapse; }
+td, th { border: 1px solid gray; padding: 2px; }
+td.c0 { text-align: right; background-color: #eeeeff; }
+td.c1 { text-align: right; background-color: #ddddff; }
+</style>
 </head>
 <body>
 
-<textarea id="detectText" cols="40" rows="4">
+<textarea id="detectText" cols="60" rows="4">
 I am a pen.
 </textarea>
-<input id="detectButton" type="button" value="detect"/>
+<!-- input id="detectButton" type="button" value="detect"/ -->
 
 <table id="probTable">
 <thead id="probHead"></thead>
@@ -23,45 +29,63 @@ I am a pen.
 
 
 <script lang="text/javascript">
+
+function sortHandler(i) {
+	return (function(){
+		var list = $("#featBody > tr");
+		list.detach();
+		list.sort(function(a,b){ return a.childNodes[i].innerText - 0 < b.childNodes[i].innerText - 0 ? 1 : -1 });
+		var body = $("#featBody");
+		for (var j=0;j<list.length;++j) {
+			body.append(list[j]);
+		}
+	});
+};
+
+function detectHanlder(obj, textStatus, jqXHR) {
+	var data = obj["data"];
+	var labels = obj["labels"];
+	var prob = obj["prob"];
+
+	var feathead = $("<tr/>");
+	$("#featHead").empty().append(feathead);
+	var probhead = $("<tr/>");
+	$("#probHead").empty().append(probhead);
+	var probbody = $("<tr/>");
+	$("#probBody").empty().append(probbody);
+
+	feathead.append($("<th/>").text("id").click(sortHandler(0)));
+	feathead.append($("<th/>").text("text").click(sortHandler(1)));
+
+	for (var i=0;i<labels.length;++i) {
+		probhead.append($("<th/>").text(labels[i]));
+		probbody.append($("<td/>").text(prob[i]));
+		feathead.append($("<th/>").text(labels[i]).click(sortHandler(i+2)));
+	}
+
+	var body = $("#featBody").empty();
+	for (var j=0;j<data.length;++j) {
+		var item = data[j];
+		var col = $("<tr/>")
+		body.append(col);
+		col.append($("<td/>").text(item["id"]));
+		col.append($("<td/>").text('"' + item["feature"] + '"'));
+		var phi = item["phi"];
+		var c = 0;
+		for (var i=0;i<phi.length;++i) {
+			col.append($("<td/>").addClass('c' + c).text(phi[i]=="0.000"?"":phi[i]));
+			c = 1 - c;
+		}
+	}
+}
+
 $(document).ready(function() { 
-	$("#detectButton").click(function(){
-		$.getJSON('/detect?text=' + encodeURIComponent($("#detectText").val()), function(obj, textStatus, jqXHR){
-			var data = obj["data"];
-			var labels = obj["labels"];
-			var prob = obj["prob"];
-
-			var feathead = $("<tr/>")
-			$("#featHead").empty().append(feathead);
-			var probhead = $("<tr/>")
-			$("#probHead").empty().append(probhead);
-			var probbody = $("<tr/>")
-			$("#probBody").empty().append(probbody);
-
-			feathead.append($("<th/>").text("id"));
-			feathead.append($("<th/>").text("text"));
-			for (var i=0;i<labels.length;++i) {
-				feathead.append($("<th/>").text(labels[i]));
-				probhead.append($("<th/>").text(labels[i]));
-				probbody.append($("<td/>").text(prob[i]));
-			}
-
-			var body = $("#featBody").empty();
-			for (var j=0;j<data.length;++j) {
-				var item = data[j];
-				var col = $("<tr/>")
-				body.append(col);
-				col.append($("<td/>").text(item["id"]));
-				col.append($("<td/>").text('"' + item["feature"] + '"'));
-				var phi = item["phi"];
-				for (var i=0;i<phi.length;++i) {
-					col.append($("<td/>").text(phi[i]=="0.000"?"":phi[i]));
-				}
-			}
-		});
+	$("#detectText").keyup(function(){
+		var text = $("#detectText").val();
+		if (text != "") $.getJSON('/detect?text=' + encodeURIComponent(text), detectHanlder);
 	});
 });
+
 </script>
-
-
 </body>
 </html>

@@ -5,7 +5,7 @@
 # This code is available under the MIT License.
 # (c)2011 Nakatani Shuyo / Cybozu Labs Inc.
 
-import os
+import sys, os, codecs
 import BaseHTTPServer
 import urlparse
 import optparse
@@ -13,8 +13,11 @@ import json
 import numpy
 import ldig
 
+#sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+
 parser = optparse.OptionParser()
 parser.add_option("-m", dest="model", help="model directory")
+parser.add_option("-p", dest="port", help="listening port number", type="int", default=48000)
 (options, args) = parser.parse_args()
 if not options.model: parser.error("need model directory (-m)")
 
@@ -52,7 +55,8 @@ class LdigServerHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         localpath = basedir + path
         if path == "/detect":
             params = urlparse.parse_qs(url.query)
-            json.dump(detector.detect(params['text'][0]), self.wfile)
+            text = unicode(params['text'][0], 'utf-8')
+            json.dump(detector.detect(text), self.wfile)
         elif os.path.exists(localpath):
             self.send_response(200)
             if path.endswith(".html"):
@@ -67,6 +71,6 @@ class LdigServerHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_header("Expires", "Fri, 31 Dec 2100 00:00:00 GMT")
             self.end_headers()
 
-server = BaseHTTPServer.HTTPServer(('', 48000), LdigServerHandler)
+server = BaseHTTPServer.HTTPServer(('', options.port), LdigServerHandler)
 print "ready."
 server.serve_forever()
