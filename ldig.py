@@ -194,7 +194,7 @@ def htmlentity2unicode(text):
 def normalize_twitter(text):
     """normalization for twitter"""
     text = re.sub(r'(@|#|https?:\/\/)[^ ]+', '', text)
-    text = re.sub(r'(^| )[:;][\(\)DOPop]($| )', ' ', text)  # facemark
+    text = re.sub(r'(^| )[:;x]-?[\(\)dop]($| )', ' ', text)  # facemark
     text = re.sub(r'(^| )RT[ :]', ' ', text)
     text = re.sub(r'([hj][aieo])\1{2,}', r'\1\1', text, re.IGNORECASE)  # laugh
     text = re.sub(r' via *$', '', text)
@@ -258,13 +258,13 @@ def normalize_text(org):
     s = re.sub(u'[^\u0020-\u007e\u00a1-\u024f\u0300-\u036f\u1e00-\u1eff]+', ' ', s)
     s = re.sub(u'  +', ' ', s).strip()
 
-    s = normalize_twitter(s)
-
     s = re_vietnamese.sub(lambda x:vietnamese_norm[x.group(0)], s)
     s = re_ignore_i.sub(lambda x:x.group(0).lower(), s)
     s = s.replace(u'\u0219', u'\u015f').replace(u'\u021b', u'\u0163')
+    s = normalize_twitter(s)
     s = re_latin_cont.sub(r'\1\1', s)
     s = re_symbol_cont.sub(r'\1', s)
+
     return label, s, org
 
 
