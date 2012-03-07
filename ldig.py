@@ -195,13 +195,14 @@ def normalize_twitter(text):
     """normalization for twitter"""
     text = re.sub(r'(@|#|https?:\/\/)[^ ]+', '', text)
     text = re.sub(r'(^| )[:;x]-?[\(\)dop]($| )', ' ', text)  # facemark
-    text = re.sub(r'(^| )RT[ :]', ' ', text)
-    text = re.sub(r'([hj][aieo])\1{2,}', r'\1\1', text, re.IGNORECASE)  # laugh
-    text = re.sub(r' via *$', '', text)
+    text = re.sub(r'(^| )(rt[ :]+)*', ' ', text)
+    text = re.sub(r'([hj])+([aieo])+(\1+\2+){1,}', r'\1\2\1\2', text, re.IGNORECASE)  # laugh
+    text = re.sub(r' +(via|live on) *$', '', text)
     return text
 
 
 re_ignore_i = re.compile(r'[^I]')
+re_turkish_alphabet = re.compile(u'[\u011e\u011f\u0130\u0131]')
 vietnamese_norm = {
 	u'\u0041\u0300':u'\u00C0', u'\u0045\u0300':u'\u00C8', u'\u0049\u0300':u'\u00CC', u'\u004F\u0300':u'\u00D2', 
 	u'\u0055\u0300':u'\u00D9', u'\u0059\u0300':u'\u1EF2', u'\u0061\u0300':u'\u00E0', u'\u0065\u0300':u'\u00E8', 
@@ -239,8 +240,8 @@ vietnamese_norm = {
 	u'\u01A0\u0323':u'\u1EE2', u'\u01A1\u0323':u'\u1EE3', u'\u01AF\u0323':u'\u1EF0', u'\u01B0\u0323':u'\u1EF1', 
 }
 re_vietnamese = re.compile(u'[AEIOUYaeiouy\u00C2\u00CA\u00D4\u00E2\u00EA\u00F4\u0102\u0103\u01A0\u01A1\u01AF\u01B0][\u0300\u0301\u0303\u0309\u0323]')
-re_latin_cont = re.compile(u'([a-z\u00e0-\u00ff])\\1{2,}')
-re_symbol_cont = re.compile(u'([^a-z\u00e0-\u00ff])\\1{1,}')
+re_latin_cont = re.compile(u'([a-z\u00e0-\u024f])\\1{2,}')
+re_symbol_cont = re.compile(u'([^a-z\u00e0-\u024f])\\1{1,}')
 def normalize_text(org):
     m = re.match(r'([-A-Za-z]+)\t(.+)', org)
     if m:
@@ -256,16 +257,25 @@ def normalize_text(org):
     s = re.sub(u'[\u2010-\u2015]', '-', s)
     s = re.sub(u'[0-9]+', '0', s)
     s = re.sub(u'[^\u0020-\u007e\u00a1-\u024f\u0300-\u036f\u1e00-\u1eff]+', ' ', s)
-    s = re.sub(u'  +', ' ', s).strip()
+    s = re.sub(u'  +', ' ', s)
 
+    # vietnamese normalization
     s = re_vietnamese.sub(lambda x:vietnamese_norm[x.group(0)], s)
+
+    # lower case with Turkish
     s = re_ignore_i.sub(lambda x:x.group(0).lower(), s)
+    #if re_turkish_alphabet.search(s):
+    #    s = s.replace(u'I', u'\u0131')
+    #s = s.lower()
+
+    # Romanian normalization
     s = s.replace(u'\u0219', u'\u015f').replace(u'\u021b', u'\u0163')
+
     s = normalize_twitter(s)
     s = re_latin_cont.sub(r'\1\1', s)
     s = re_symbol_cont.sub(r'\1', s)
 
-    return label, s, org
+    return label, s.strip(), org
 
 
 # load courpus
@@ -408,7 +418,7 @@ def likelihood(param, labels, trie, filelist, options):
                 log_likely -= numpy.log(y[label_k])
                 n_available_data += 1
                 counts[label_k] += 1
-                if label_k == predict_k:
+                if label_k == predict_k and y[predict_k] >= 0.6:
                     corrects[predict_k] += 1
 
             predict_lang = labels[predict_k]

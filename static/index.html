@@ -13,7 +13,7 @@ td.c1 { text-align: right; background-color: #ddddff; }
 <body>
 
 <textarea id="detectText" cols="60" rows="4">
-I am a pen.
+I am a engineer.
 </textarea>
 <!-- input id="detectButton" type="button" value="detect"/ -->
 
@@ -59,7 +59,7 @@ function detectHanlder(obj, textStatus, jqXHR) {
 
 	for (var i=0;i<labels.length;++i) {
 		probhead.append($("<th/>").text(labels[i]));
-		probbody.append($("<td/>").text(prob[i]));
+		probbody.append($("<td/>").text(prob[i]).css('color', prob[i] > 0.6 ? 'red' : 'black'));
 		feathead.append($("<th/>").text(labels[i]).click(sortHandler(i+2)));
 	}
 
