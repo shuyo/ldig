@@ -21,7 +21,7 @@ Data format
 
 As input data, Each tweet is one line in text file as the below format.
 
-  [label]\t[some metadata separated '\t']\t[text without '\t']
+    [label]\t[some metadata separated '\t']\t[text without '\t']
 
 [label] is a language name alike en, de, fr and so on.
 It is also optional as metadata.
@@ -29,7 +29,7 @@ It is also optional as metadata.
 
 The output data of lidg is as the below.
 
-  [correct label]\t[detected label]\t[original metadata and text]
+    [correct label]\t[detected label]\t[original metadata and text]
 
 
 Estimation Tool
@@ -67,6 +67,12 @@ Supported Languages
 
 Documents
 ------
+
+- Blog Articles about ldig
+  - [Language Detection for twitter with 99.1% Accuracy](http://shuyo.wordpress.com/2012/02/21/language-detection-for-twitter-with-99-1-accuracy/)
+  - [Precision and Recall of ldig (twitter language detection)](http://shuyo.wordpress.com/2012/03/02/precision-and-recall-of-ldig-twitter-language-detection/)
+  - [Estimation of ldig (twitter Language Detection) for LIGA dataset](http://shuyo.wordpress.com/2012/03/02/estimation-of-ldig-twitter-language-detection-for-liga-dataset/)
+  - [Why is Norwegian and Danish identification difficult?](http://shuyo.wordpress.com/2012/03/07/why-is-norwegian-and-danish-identification-difficult/)
 
 - [Presentation in Japanese](http://www.slideshare.net/shuyo/gram-10286133)
 
