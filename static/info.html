@@ -1,0 +1,72 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>ldig server</title>
+<script type="text/javascript" src="jquery-1.7.1.min.js"></script>
+<style type="text/css">
+table { border-collapse: collapse; }
+td, th { border: 1px solid gray; padding: 2px; }
+td.c0 { text-align: right; background-color: #eeeeff; }
+td.c1 { text-align: right; background-color: #ddddff; }
+</style>
+</head>
+<body>
+
+<h4>Features with largest weights:</h4>
+<table id="featTable">
+<thead id="featHead"></thead>
+<tbody id="featBody"></tbody>
+</table>
+
+
+<script lang="text/javascript">
+
+function sortHandler(i) {
+	return (function(){
+		var list = $("#featBody > tr");
+		list.detach();
+		list.sort(function(a,b){ return a.childNodes[i].innerText - 0 < b.childNodes[i].innerText - 0 ? 1 : -1 });
+		var body = $("#featBody");
+		for (var j=0;j<list.length;++j) {
+			body.append(list[j]);
+		}
+	});
+};
+
+function detectHanlder(obj, textStatus, jqXHR) {
+	var data = obj["data"];
+	var labels = obj["labels"];
+
+	var feathead = $("<tr/>");
+	$("#featHead").empty().append(feathead);
+
+	feathead.append($("<th/>").text("id").click(sortHandler(0)));
+	feathead.append($("<th/>").text("text").click(sortHandler(1)));
+
+	for (var i=0;i<labels.length;++i) {
+		feathead.append($("<th/>").text(labels[i]).click(sortHandler(i+2)));
+	}
+
+	var body = $("#featBody").empty();
+	for (var j=0;j<data.length;++j) {
+		var item = data[j];
+		var col = $("<tr/>")
+		body.append(col);
+		col.append($("<td/>").text(item["id"]));
+		col.append($("<td/>").text('"' + item["feature"] + '"'));
+		var phi = item["phi"];
+		var c = 0;
+		for (var i=0;i<phi.length;++i) {
+			col.append($("<td/>").addClass('c' + c).text(phi[i]=="0.000"?"":phi[i]));
+			c = 1 - c;
+		}
+	}
+}
+
+$(document).ready(function() { 
+	$.getJSON('/info', detectHanlder);
+});
+
+</script>
+</body>
+</html>
