@@ -68,13 +68,14 @@ Supported Languages
 Documents
 ------
 
+- [Presentation in English](http://www.slideshare.net/shuyo/short-text-language-detection-with-infinitygram-12949447)
+- [Presentation in Japanese](http://www.slideshare.net/shuyo/gram-10286133)
+
 - Blog Articles about ldig
   - [Language Detection for twitter with 99.1% Accuracy](http://shuyo.wordpress.com/2012/02/21/language-detection-for-twitter-with-99-1-accuracy/)
   - [Precision and Recall of ldig (twitter language detection)](http://shuyo.wordpress.com/2012/03/02/precision-and-recall-of-ldig-twitter-language-detection/)
   - [Estimation of ldig (twitter Language Detection) for LIGA dataset](http://shuyo.wordpress.com/2012/03/02/estimation-of-ldig-twitter-language-detection-for-liga-dataset/)
   - [Why is Norwegian and Danish identification difficult?](http://shuyo.wordpress.com/2012/03/07/why-is-norwegian-and-danish-identification-difficult/)
-
-- [Presentation in Japanese](http://www.slideshare.net/shuyo/gram-10286133)
 
 
 Copyright & License
