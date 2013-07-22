@@ -39,7 +39,7 @@ class Detector(object):
         for id in sorted(events, key=lambda id:self.features[id][0]):
             phi = self.param[id,]
             sum += phi * events[id]
-            data.append({"id":id, "feature":self.features[id][0], "phi":["%0.3f" % x for x in phi]})
+            data.append({"id":int(id), "feature":self.features[id][0], "phi":["%0.3f" % x for x in phi]})
         exp_w = numpy.exp(sum - sum.max())
         prob = exp_w / exp_w.sum()
         return {"labels":self.labels, "data":data, "prob":["%0.3f" % x for x in prob]}
