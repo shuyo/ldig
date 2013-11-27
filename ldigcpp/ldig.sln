@@ -1,0 +1,38 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ldig", "ldig\ldig.vcxproj", "{006B0427-A9EF-4C07-B38E-F02312A0533C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ldigtest", "ldigtest\ldigtest.vcxproj", "{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}"
+	ProjectSection(ProjectDependencies) = postProject
+		{006B0427-A9EF-4C07-B38E-F02312A0533C} = {006B0427-A9EF-4C07-B38E-F02312A0533C}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Debug|Win32.Build.0 = Debug|Win32
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Debug|x64.ActiveCfg = Debug|x64
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Debug|x64.Build.0 = Debug|x64
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Release|Win32.ActiveCfg = Release|Win32
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Release|Win32.Build.0 = Release|Win32
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Release|x64.ActiveCfg = Release|x64
+		{006B0427-A9EF-4C07-B38E-F02312A0533C}.Release|x64.Build.0 = Release|x64
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Debug|Win32.ActiveCfg = Debug|Win32
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Debug|Win32.Build.0 = Debug|Win32
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Debug|x64.ActiveCfg = Debug|Win32
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Release|Win32.ActiveCfg = Release|Win32
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Release|Win32.Build.0 = Release|Win32
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Release|x64.ActiveCfg = Release|x64
+		{6A2AD6DB-6312-41C9-BED9-940F6BAC2130}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
