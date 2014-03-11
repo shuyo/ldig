@@ -1,9 +1,20 @@
 ﻿#define CYBOZU_TEST_DISABLE_AUTO_RUN
-inline size_t worksize() {
-	return 0;
-}
+inline void worksize() {}
 
 #include <iostream>
+#ifdef __linux__
+#include <boost/regex.hpp>
+namespace std {
+    using boost::regex;
+    using boost::regex_match;
+    using boost::regex_search;
+    using boost::regex_iterator;
+    using boost::match_results;
+    using boost::smatch;
+}
+#else
+#include <regex>
+#endif
 #include "cybozu/regex.hpp"
 #include "cybozu/test.hpp"
 #include "da.hpp"
