@@ -9,24 +9,33 @@ Build
 ------
 
 1. Clone ldig project and checkout cpp branch
+
+  ```sh
   git clone https://github.com/shuyo/ldig.git
   cd ldig
   git checkout cpp
   cd cpp
+  ```
 
 2. Clone cybozulib
+
+  ```sh
   git clone https://github.com/herumi/cybozulib.git
+  ```
 
 3. Make
+
+  ```sh
   cmake .
   make
+  ```
 
 
 Usage
 ------
 
 1. Extract model archive
-    xz -d lang50.x64.model.xz
+    xz -dk lang50.x64.model.xz
 
 2. Detect
     ldig.py -m lang50.x64.model [text data file]
