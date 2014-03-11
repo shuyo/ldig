@@ -43,7 +43,7 @@ public:
 	}
 
 	Features(const LdigString &str, const FeatureVec &features) :
-		fulltext(str), nodeNum(0), FeatureVec(features)
+		FeatureVec(features), fulltext(str), nodeNum(0)
 	{}
 
 	void extract(const LdigString &str, size_t bound_feature_freq)
@@ -102,7 +102,7 @@ public:
 		});
 	}
 
-	Features(const Features &features) : nodeNum(0), FeatureVec(features) {
+	Features(const Features &features) : FeatureVec(features), nodeNum(0) {
 		typedef std::pair<size_t, Feature> IdxFtr;
 		std::vector<IdxFtr> list;
 		for(size_t i=0;i<features.size();++i) list.push_back(IdxFtr(i, features[i]));
@@ -291,7 +291,7 @@ public:
 		size_t cur = 0;
 		for(auto i=key.begin(), ie=key.end();i!=ie;++i) {
 			size_t next = base[cur] + *i;
-			if (next >= N || check[next] != cur) return -1;
+			if (next >= N || (unsigned int)check[next] != cur) return -1;
 			cur = next;
 		}
 		int v = value[cur];
@@ -304,7 +304,7 @@ public:
 			size_t pointer = 0;
 			for(auto i2=i1;i2!=end;++i2) {
 				size_t next = base[pointer] + *i2;
-				if (next >= N || check[next] != pointer) break;
+				if (next >= N || (unsigned int)check[next] != pointer) break;
 				int id = value[next];
 				if (id >= 0) {
 					events[id]++;

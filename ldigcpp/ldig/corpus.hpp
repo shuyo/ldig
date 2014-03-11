@@ -11,8 +11,11 @@
 #include <boost/regex.hpp>
 namespace std {
     using boost::regex;
-    using boost::match_results;
+    using boost::regex_match;
     using boost::regex_search;
+    using boost::regex_iterator;
+    using boost::match_results;
+    using boost::smatch;
 }
 #else
 #include <regex>
@@ -503,7 +506,7 @@ void normalize(cybozu::String &result, const cybozu::String &org_text) {
 			}
 		} else if (x<=0x9fcb) {
 			if (x>=0x4e00) {
-				char c = kanji_table[x - 0x4e00];
+				unsigned char c = kanji_table[x - 0x4e00];
 				if ( c < sizeof(kanji_replace) / sizeof(kanji_replace[0])) {
 					x = kanji_replace[c];
 				}
@@ -621,7 +624,7 @@ public:
 	size_t lineno;
 	unsigned int score;
 	TextLine() : line(""), filename(0), lineno(0), score(0) {
-		throw std::exception("The default constructor of TextLine is not implemented.");
+		throw Exception("The default constructor of TextLine is not implemented.");
 	}
 	TextLine(const std::string &l, size_t f, size_t n)
 		: line(l), filename(f), lineno(n), score(0) {}
@@ -644,7 +647,7 @@ public:
 
 	CorpusFactory(const size_t div, const size_t test) : n_div(div), n_test(test) {
 		if (n_div <= n_test)
-				throw std::exception("need [div] > [test]");
+				throw Exception("need [div] > [test]");
 	}
 
 	size_t size() const { return N; }
@@ -655,7 +658,7 @@ public:
 		for (std::vector<std::string>::const_iterator i=files.begin(), ie=files.end();i!=ie;++i) {
 			std::ifstream ifs(*i);
 			if (!ifs.is_open()) {
-				throw std::exception("cannot open the file");
+				throw Exception("cannot open the file");
 			}
 			size_t n = 0;
 			while (!ifs.eof()) {
@@ -676,7 +679,7 @@ public:
 		N = 0;
 		for (auto i=dataset.begin(), ie=dataset.end();i!=ie;++i) {
 			if (i->second.size() < n_div)
-				throw std::exception("all labels need more than [div] texts.");
+				throw Exception("all labels need more than [div] texts.");
 			std::random_shuffle(i->second.begin(), i->second.end());
 			N += i->second.size();
 		}
@@ -767,7 +770,7 @@ public:
 			st.append(LF);
 			return st;
 		}
-		throw std::exception("bug?");
+		throw Exception("bug?");
 	}
 
 	TextLine &test() const {

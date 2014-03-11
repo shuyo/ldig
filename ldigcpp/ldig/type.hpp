@@ -6,6 +6,7 @@
 	Copyright (C) 2013 Nakatani Shuyo / Cybozu Labs, Inc., all rights reserved.
 */
 
+#include <cfloat>
 #include <unordered_map>
 #include "cybozu/string.hpp"
 
@@ -42,6 +43,18 @@ public:
 	std::string label;
 	std::vector<TextPos> vec;
 	TextVec(const std::string &l) : label(l) {}
+};
+
+class Exception : public std::exception {
+private:
+	std::string message_;
+public:
+	Exception(const std::string& message) : message_(message) {}
+	virtual ~Exception() throw() {}
+
+	virtual const char* what() const throw() {
+		return message_.c_str();
+	}
 };
 
 }}

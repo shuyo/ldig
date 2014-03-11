@@ -21,18 +21,15 @@
 
 //ifstream.exception(std::ifstream::failbit | std::ifstream::badbit);
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_DEBUG)
 #include <Psapi.h>
-
-size_t worksize() {
+void worksize() {
 	PROCESS_MEMORY_COUNTERS info;
 	GetProcessMemoryInfo(GetCurrentProcess(), &info, sizeof(info));
-	return info.WorkingSetSize;
+	std::cout << info.WorkingSetSize << std::endl;
 }
 #else
-size_t worksize() {
-	return 0;
-}
+void worksize() {}
 #endif
 
 
@@ -51,7 +48,7 @@ const size_t BUFSIZE = 4096;
 void saveModel(const cybozu::ldig::Model &model, const std::string &modelpath) {
 	std::ofstream ofs(modelpath, std::ios::binary);
 	if (!ofs.is_open()) {
-		throw std::exception("cannot open the model path");
+		throw cybozu::ldig::Exception("cannot open the model path");
 	}
 	model.save(ofs);
 	ofs.close();
@@ -60,7 +57,7 @@ void saveModel(const cybozu::ldig::Model &model, const std::string &modelpath) {
 void loadModel(cybozu::ldig::Model &model, const std::string &modelpath) {
 	std::ifstream ifs(modelpath, std::ios::binary);
 	if (!ifs.is_open()) {
-		throw std::exception("cannot open the model path");
+		throw cybozu::ldig::Exception("cannot open the model path");
 	}
 	model.load(ifs);
 	ifs.close();
@@ -73,7 +70,7 @@ void ldig_dump(const std::string &modelpath, const std::string &outputpath) {
 	std::ofstream ofs;
 	ofs.open(outputpath, std::ios::binary);
 	if (!ofs.is_open()) {
-		throw std::exception("cannot open output file");
+		throw cybozu::ldig::Exception("cannot open output file");
 	}
 	//ofs.precision(3);
 	//ofs << std::fixed;
@@ -144,7 +141,7 @@ void ldig_detect(const std::string &modelpath, const std::string &outputpath, co
 	if (outputpath.length() > 0) {
 		ofs.open(outputpath, std::ios::binary);
 		if (!ofs.is_open()) {
-			throw std::exception("cannot open output file");
+			throw cybozu::ldig::Exception("cannot open output file");
 		}
 		ofs.precision(3);
 		ofs << std::fixed;
@@ -158,7 +155,7 @@ void ldig_detect(const std::string &modelpath, const std::string &outputpath, co
 		std::cout << "loading... " << *i << std::endl;
 		std::ifstream ifs(*i);
 		if (!ifs.is_open()) {
-			throw std::exception("cannot open a test file");
+			throw cybozu::ldig::Exception("cannot open a test file");
 		}
 
 		while (!ifs.eof()) {
@@ -186,7 +183,7 @@ void ldig_detect(const std::string &modelpath, const std::string &outputpath, co
 
 			std::vector<LdigFloat> y(K);
 			size_t predict_k = model.predict(y, events);
-			if (label_k != -1) {
+			if (label_k != (size_t)-1) {
 				const size_t label_k = model.labelmap.at(label);
 				predicted[label_k][(y[predict_k] >= 0.6)? predict_k : -1] += 1;
 				if (y[label_k] > 0) log_likelihood -= log(y[label_k]);
@@ -234,11 +231,11 @@ void ldig_detect(const std::string &modelpath, const std::string &outputpath, co
 }
 
 void ldig_init(const std::string &modelpath, const std::vector<std::string> &files, size_t bound_feature_freq, LdigFloat eta, LdigFloat reg) {
-	std::cout << worksize() << std::endl;
+	worksize();
 
 	cybozu::ldig::Corpus corpus;
 	corpus.load(files);
-	std::cout << worksize() << std::endl;
+	worksize();
 
 	const cybozu::String& fulltext = corpus.text();
 	std::cout << "corpus : " << corpus.size() << std::endl;
@@ -261,7 +258,7 @@ void ldig_init(const std::string &modelpath, const std::vector<std::string> &fil
 	//for(auto i=features.begin(), ie=features.end();i!=ie;++i) std::cout << i->str(fulltext) << "\t" << i->count << std::endl;
 
 	std::cout << "darray : " << model.trie.size() << std::endl;
-	std::cout << worksize() << std::endl;
+	worksize();
 
 	time_t t = time(0);
 	for(size_t n=0;n<10;++n) {
@@ -282,7 +279,7 @@ void ldig_init(const std::string &modelpath, const std::vector<std::string> &fil
 		}
 		std::cout << n << " : " << c << " / " << s << " = " << (LdigFloat)c/(LdigFloat)s << ", neg log likelihood " << lh << " (" << time(0) - t << "s)" << std::endl;
 		eta *= 0.8;
-		std::cout << worksize() << std::endl;
+		worksize();
 	}
 
 	saveModel(model, modelpath);
@@ -291,9 +288,9 @@ void ldig_init(const std::string &modelpath, const std::vector<std::string> &fil
 
 void ldig_varidation(const std::vector<std::string> &files, const std::string &outputpath, const size_t cvn, const size_t cvt, size_t bound_feature_freq) {
 	cybozu::ldig::CorpusFactory validator(cvn, cvt);
-	std::cout << worksize() << std::endl;
+	worksize();
 	validator.load(files);
-	std::cout << worksize() << std::endl;
+	worksize();
 	while (validator.next()) {
 		std::cout << "testing ..";
 		for (auto i=validator.combination.begin(), ie=validator.combination.end();i!=ie;++i) {
@@ -302,7 +299,6 @@ void ldig_varidation(const std::vector<std::string> &files, const std::string &o
 		std::cout << std::endl;
 
 		const cybozu::ldig::Corpus &corpus = validator.train;
-		const size_t K = corpus.labels().size();
 		cybozu::ldig::Model model(corpus, bound_feature_freq);
 
 		LdigFloat eta = 0.1;
@@ -322,7 +318,7 @@ void ldig_varidation(const std::vector<std::string> &files, const std::string &o
 		std::ofstream ofs;
 		ofs.open(outputpath, std::ios::binary);
 		if (!ofs.is_open()) {
-			throw std::exception("cannot open output file");
+			throw cybozu::ldig::Exception("cannot open output file");
 		}
 		ofs.imbue(std::locale("C"));
 
@@ -450,23 +446,23 @@ int main(int argc, char* argv[])
 
 	char *p;
 ERROR_OPT_E:
-	p = "[ERROR] -e option needs positive real number";
+	p = (char *)"[ERROR] -e option needs positive real number";
 	goto ERROR_EXIT;
 
 ERROR_OPT_R:
-	p = "[ERROR] -r option needs positive real number";
+	p = (char *)"[ERROR] -r option needs positive real number";
 	goto ERROR_EXIT;
 
 ERROR_OPT_FF:
-	p = "[ERROR] --ff option needs non-negative integer";
+	p = (char *)"[ERROR] --ff option needs non-negative integer";
 	goto ERROR_EXIT;
 
 ERROR_OPT_CV:
-	p = "[ERROR] --cvn/cvt option needs positive integer";
+	p = (char *)"[ERROR] --cvn/cvt option needs positive integer";
 	goto ERROR_EXIT;
 
 ERROR_OPT_MARGIN:
-	p = "[ERROR] --margin option needs positive integer";
+	p = (char *)"[ERROR] --margin option needs positive integer";
 	goto ERROR_EXIT;
 
 ERROR_EXIT:

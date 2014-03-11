@@ -82,7 +82,7 @@ public:
 	*/
 	void update(const Events &events, const size_t label_k, const LdigFloat eta) {
 		std::vector<LdigFloat> y(K);
-		size_t predict_k = predict(y, events);
+		predict(y, events);
 		y[label_k] -= 1;
 
 		for (auto k=y.begin(), ke=y.end(); k!=ke; ++k) *k *= eta;
@@ -150,7 +150,7 @@ public:
 			Events events;
 			trie.extract_features(events, fulltext, v[r]);
 			y.clear();
-			size_t predict_k = predict(y, events);
+			predict(y, events);
 			y[label_k] -= 1;	// t_n - y_n
 
 			if (withreg) {
@@ -294,8 +294,8 @@ public:
 	void load(std::istream &ifs) {
 		int size_size_t = ifs.get();
 		if (size_size_t != sizeof(size_t)) {
-			if (size_size_t==4) throw std::exception("cannot load a model builded on 32 bit platform");
-			throw std::exception("cannot load a model builded on 64 bit platform");
+			if (size_size_t==4) throw Exception("cannot load a model builded on 32 bit platform");
+			throw Exception("cannot load a model builded on 64 bit platform");
 		}
 
 		unsigned int K_, M_;
