@@ -14,7 +14,7 @@ Build
   git clone https://github.com/shuyo/ldig.git
   cd ldig
   git checkout cpp
-  cd cpp
+  cd ldigcpp
   ```
 
 2. Clone cybozulib
