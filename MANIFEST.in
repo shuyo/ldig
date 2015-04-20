@@ -1,0 +1,3 @@
+recursive-include ldig/maxsubst *
+recursive-include ldig/static *
+recursive-include ldig/models *
