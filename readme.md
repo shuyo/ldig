@@ -13,8 +13,16 @@ Usage
     tar xf models/[select model archive]
 
 2. Detect
+  1. As a script
+  ```
     ldig.py -m [model directory] [text data file]
-
+  ```
+  2. As a library
+  ```
+    import ldig
+    detector = ldig.ldig([model directory])
+    detector.detect("This is a tweet")
+  ```
 
 Data format
 ------
@@ -82,4 +90,3 @@ Copyright & License
 -----
 - (c)2011-2012 Nakatani Shuyo / Cybozu Labs Inc. All rights reserved.
 - All codes and resources are available under the MIT License.
-

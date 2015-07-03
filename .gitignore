@@ -1,0 +1,4 @@
+*.pyc
+models/model.latin/
+models/model.small/
+test.data
