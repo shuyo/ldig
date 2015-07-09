@@ -4,13 +4,20 @@
 # ldig : Language Detector with Infinite-Gram
 # This code is available under the MIT License.
 # (c)2011 Nakatani Shuyo / Cybozu Labs Inc.
+# https://github.com/shuyo/ldig
+# Modified by Nikolaj Hass 06-06-2015
+# Updated to work with python 3 and only take a text string instead of a file
 
 import os, sys, re, codecs, json
 import optparse
 import numpy
-import htmlentitydefs
+import html.entities as htmlentitydefs
+# import htmlentitydefs
 import subprocess
 import da
+import io
+import sys
+
 
 
 class ldig(object):
@@ -27,7 +34,7 @@ class ldig(object):
 
     def load_features(self):
         features = []
-        with codecs.open(self.features, 'rb',  'utf-8') as f:
+        with codecs.open(self.features, 'rb', 'utf-8') as f:
             pre_feature = ""
             for n, s in enumerate(f):
                 m = re.match(r'(.+)\t([0-9]+)', s)
@@ -41,8 +48,8 @@ class ldig(object):
 
     def load_labels(self):
         with open(self.labels, 'rb') as f:
-            return json.load(f)
-
+            str_response = f.read().decode("utf-8")
+            return json.load(io.StringIO(str_response))
 
     def init(self, temp_path, corpus_list, lbff, ngram_bound):
         """
@@ -58,9 +65,9 @@ class ldig(object):
             for file in corpus_list:
                 with codecs.open(file, 'rb', 'utf-8') as g:
                     for i, s in enumerate(g):
-                        label, text, org_text =  normalize_text(s)
+                        label, text, org_text = normalize_text(s)
                         if label is None or label == "":
-                            sys.stderr.write("no label data at %d in %s \n" % (i+1, file))
+                            sys.stderr.write("no label data at %d in %s \n" % (i + 1, file))
                             continue
                         if label not in labels:
                             labels.append(label)
@@ -68,11 +75,11 @@ class ldig(object):
                         f.write("\n")
 
         labels.sort()
-        print "labels: %d" % len(labels)
+        print("labels: %d" % len(labels))
         with open(self.labels, 'wb') as f:
             f.write(json.dumps(labels))
 
-        print "generating max-substrings..."
+        print("generating max-substrings...")
         temp_features = self.features + ".temp"
         maxsubst = options.maxsubst
         if os.name == 'nt': maxsubst += ".exe"
@@ -87,11 +94,12 @@ class ldig(object):
             for line in f:
                 i = line.index('\t')
                 st = line[0:i]
-                c = int(line[i+1:-1])
-                if c >= lbff and len(st) <= ngram_bound and (not r1.search(st)) and r2.search(st) and (st[0] != u'\u0001' or st[-1] != u'\u0001'):
+                c = int(line[i + 1:-1])
+                if c >= lbff and len(st) <= ngram_bound and (not r1.search(st)) and r2.search(st) and (
+                                st[0] != u'\u0001' or st[-1] != u'\u0001'):
                     M += 1
                     features.append((st, line))
-        print "# of features = %d" % M
+        print("# of features = %d" % M)
 
         features.sort()
         with codecs.open(self.features, 'wb', 'utf-8') as f:
@@ -108,11 +116,11 @@ class ldig(object):
 
         list = (numpy.abs(param).sum(1) > 0.0000001)
         new_param = param[list]
-        print "# of features : %d => %d" % (param.shape[0], new_param.shape[0])
+        print("# of features : %d => %d" % (param.shape[0], new_param.shape[0]))
 
         numpy.save(self.param, new_param)
         new_features = []
-        with codecs.open(self.features, 'wb',  'utf-8') as f:
+        with codecs.open(self.features, 'wb', 'utf-8') as f:
             for i, x in enumerate(list):
                 if x:
                     f.write("%s\t%s\n" % features[i])
@@ -129,18 +137,18 @@ class ldig(object):
         for st in args:
             label, text, org_text = normalize_text(st)
             events = trie.extract_features(u"\u0001" + text + u"\u0001")
-            print "orig: '%s'" % st
-            print "norm: '%s'" % text
+            print("orig: '%s'" % st)
+            print("norm: '%s'" % text)
             sum = numpy.zeros(len(labels))
-            print "id\tfeat\tfreq\t%s" % "\t".join(labels)
-            for id in sorted(events, key=lambda id:features[id][0]):
+            print("id\tfeat\tfreq\t%s" % "\t".join(labels))
+            for id in sorted(events, key=lambda id: features[id][0]):
                 phi = param[id,]
                 sum += phi * events[id]
-                print "%d\t%s\t%d\t%s" % (id,features[id][0], events[id], "\t".join(["%0.2f" % x for x in phi]))
+                print("%d\t%s\t%d\t%s" % (id, features[id][0], events[id], "\t".join(["%0.2f" % x for x in phi])))
             exp_w = numpy.exp(sum - sum.max())
             prob = exp_w / exp_w.sum()
-            print "\t\t\t%s" % "\t".join(["%0.2f" % x for x in sum])
-            print "\t\t\t%s" % "\t".join(["%0.1f%%" % (x * 100) for x in prob])
+            print("\t\t\t%s" % "\t".join(["%0.2f" % x for x in sum]))
+            print("\t\t\t%s" % "\t".join(["%0.1f%%" % (x * 100) for x in prob]))
 
     def learn(self, options, args):
         trie = self.load_da()
@@ -148,11 +156,12 @@ class ldig(object):
         labels = self.load_labels()
 
         import time
-        print "loading corpus... " + time.strftime("%H:%M:%S", time.localtime())
+
+        print("loading corpus... " + time.strftime("%H:%M:%S", time.localtime()))
         corpus, idlist = load_corpus(args, labels)
-        print "inference... " + time.strftime("%H:%M:%S", time.localtime())
+        print("inference... " + time.strftime("%H:%M:%S", time.localtime()))
         inference(param, labels, corpus, idlist, trie, options)
-        print "finish... " + time.strftime("%H:%M:%S", time.localtime())
+        print("finish... " + time.strftime("%H:%M:%S", time.localtime()))
         numpy.save(self.param, param)
 
     def detect(self, options, args):
@@ -161,14 +170,15 @@ class ldig(object):
         labels = self.load_labels()
 
         log_likely = likelihood(param, labels, trie, args, options)
-
-
-
+        return log_likely
+        #sys.stdout.buffer.write(log_likely)#print(log_likely)
 
 # from http://www.programming-magic.com/20080820002254/
 reference_regex = re.compile(u'&(#x?[0-9a-f]+|[a-z]+);', re.IGNORECASE)
 num16_regex = re.compile(u'#x\d+', re.IGNORECASE)
 num10_regex = re.compile(u'#\d+', re.IGNORECASE)
+
+
 def htmlentity2unicode(text):
     result = u''
     i = 0
@@ -185,7 +195,7 @@ def htmlentity2unicode(text):
         if name in htmlentitydefs.name2codepoint.keys():
             result += unichr(htmlentitydefs.name2codepoint[name])
         elif num16_regex.match(name):
-            result += unichr(int(u'0'+name[1:], 16))
+            result += unichr(int(u'0' + name[1:], 16))
         elif num10_regex.match(name):
             result += unichr(int(name[1:]))
     return result
@@ -204,44 +214,47 @@ def normalize_twitter(text):
 re_ignore_i = re.compile(r'[^I]')
 re_turkish_alphabet = re.compile(u'[\u011e\u011f\u0130\u0131]')
 vietnamese_norm = {
-	u'\u0041\u0300':u'\u00C0', u'\u0045\u0300':u'\u00C8', u'\u0049\u0300':u'\u00CC', u'\u004F\u0300':u'\u00D2', 
-	u'\u0055\u0300':u'\u00D9', u'\u0059\u0300':u'\u1EF2', u'\u0061\u0300':u'\u00E0', u'\u0065\u0300':u'\u00E8', 
-	u'\u0069\u0300':u'\u00EC', u'\u006F\u0300':u'\u00F2', u'\u0075\u0300':u'\u00F9', u'\u0079\u0300':u'\u1EF3', 
-	u'\u00C2\u0300':u'\u1EA6', u'\u00CA\u0300':u'\u1EC0', u'\u00D4\u0300':u'\u1ED2', u'\u00E2\u0300':u'\u1EA7', 
-	u'\u00EA\u0300':u'\u1EC1', u'\u00F4\u0300':u'\u1ED3', u'\u0102\u0300':u'\u1EB0', u'\u0103\u0300':u'\u1EB1', 
-	u'\u01A0\u0300':u'\u1EDC', u'\u01A1\u0300':u'\u1EDD', u'\u01AF\u0300':u'\u1EEA', u'\u01B0\u0300':u'\u1EEB', 
+    u'\u0041\u0300': u'\u00C0', u'\u0045\u0300': u'\u00C8', u'\u0049\u0300': u'\u00CC', u'\u004F\u0300': u'\u00D2',
+    u'\u0055\u0300': u'\u00D9', u'\u0059\u0300': u'\u1EF2', u'\u0061\u0300': u'\u00E0', u'\u0065\u0300': u'\u00E8',
+    u'\u0069\u0300': u'\u00EC', u'\u006F\u0300': u'\u00F2', u'\u0075\u0300': u'\u00F9', u'\u0079\u0300': u'\u1EF3',
+    u'\u00C2\u0300': u'\u1EA6', u'\u00CA\u0300': u'\u1EC0', u'\u00D4\u0300': u'\u1ED2', u'\u00E2\u0300': u'\u1EA7',
+    u'\u00EA\u0300': u'\u1EC1', u'\u00F4\u0300': u'\u1ED3', u'\u0102\u0300': u'\u1EB0', u'\u0103\u0300': u'\u1EB1',
+    u'\u01A0\u0300': u'\u1EDC', u'\u01A1\u0300': u'\u1EDD', u'\u01AF\u0300': u'\u1EEA', u'\u01B0\u0300': u'\u1EEB',
 
-	u'\u0041\u0301':u'\u00C1', u'\u0045\u0301':u'\u00C9', u'\u0049\u0301':u'\u00CD', u'\u004F\u0301':u'\u00D3', 
-	u'\u0055\u0301':u'\u00DA', u'\u0059\u0301':u'\u00DD', u'\u0061\u0301':u'\u00E1', u'\u0065\u0301':u'\u00E9', 
-	u'\u0069\u0301':u'\u00ED', u'\u006F\u0301':u'\u00F3', u'\u0075\u0301':u'\u00FA', u'\u0079\u0301':u'\u00FD', 
-	u'\u00C2\u0301':u'\u1EA4', u'\u00CA\u0301':u'\u1EBE', u'\u00D4\u0301':u'\u1ED0', u'\u00E2\u0301':u'\u1EA5', 
-	u'\u00EA\u0301':u'\u1EBF', u'\u00F4\u0301':u'\u1ED1', u'\u0102\u0301':u'\u1EAE', u'\u0103\u0301':u'\u1EAF', 
-	u'\u01A0\u0301':u'\u1EDA', u'\u01A1\u0301':u'\u1EDB', u'\u01AF\u0301':u'\u1EE8', u'\u01B0\u0301':u'\u1EE9', 
+    u'\u0041\u0301': u'\u00C1', u'\u0045\u0301': u'\u00C9', u'\u0049\u0301': u'\u00CD', u'\u004F\u0301': u'\u00D3',
+    u'\u0055\u0301': u'\u00DA', u'\u0059\u0301': u'\u00DD', u'\u0061\u0301': u'\u00E1', u'\u0065\u0301': u'\u00E9',
+    u'\u0069\u0301': u'\u00ED', u'\u006F\u0301': u'\u00F3', u'\u0075\u0301': u'\u00FA', u'\u0079\u0301': u'\u00FD',
+    u'\u00C2\u0301': u'\u1EA4', u'\u00CA\u0301': u'\u1EBE', u'\u00D4\u0301': u'\u1ED0', u'\u00E2\u0301': u'\u1EA5',
+    u'\u00EA\u0301': u'\u1EBF', u'\u00F4\u0301': u'\u1ED1', u'\u0102\u0301': u'\u1EAE', u'\u0103\u0301': u'\u1EAF',
+    u'\u01A0\u0301': u'\u1EDA', u'\u01A1\u0301': u'\u1EDB', u'\u01AF\u0301': u'\u1EE8', u'\u01B0\u0301': u'\u1EE9',
 
-	u'\u0041\u0303':u'\u00C3', u'\u0045\u0303':u'\u1EBC', u'\u0049\u0303':u'\u0128', u'\u004F\u0303':u'\u00D5', 
-	u'\u0055\u0303':u'\u0168', u'\u0059\u0303':u'\u1EF8', u'\u0061\u0303':u'\u00E3', u'\u0065\u0303':u'\u1EBD', 
-	u'\u0069\u0303':u'\u0129', u'\u006F\u0303':u'\u00F5', u'\u0075\u0303':u'\u0169', u'\u0079\u0303':u'\u1EF9', 
-	u'\u00C2\u0303':u'\u1EAA', u'\u00CA\u0303':u'\u1EC4', u'\u00D4\u0303':u'\u1ED6', u'\u00E2\u0303':u'\u1EAB', 
-	u'\u00EA\u0303':u'\u1EC5', u'\u00F4\u0303':u'\u1ED7', u'\u0102\u0303':u'\u1EB4', u'\u0103\u0303':u'\u1EB5', 
-	u'\u01A0\u0303':u'\u1EE0', u'\u01A1\u0303':u'\u1EE1', u'\u01AF\u0303':u'\u1EEE', u'\u01B0\u0303':u'\u1EEF', 
+    u'\u0041\u0303': u'\u00C3', u'\u0045\u0303': u'\u1EBC', u'\u0049\u0303': u'\u0128', u'\u004F\u0303': u'\u00D5',
+    u'\u0055\u0303': u'\u0168', u'\u0059\u0303': u'\u1EF8', u'\u0061\u0303': u'\u00E3', u'\u0065\u0303': u'\u1EBD',
+    u'\u0069\u0303': u'\u0129', u'\u006F\u0303': u'\u00F5', u'\u0075\u0303': u'\u0169', u'\u0079\u0303': u'\u1EF9',
+    u'\u00C2\u0303': u'\u1EAA', u'\u00CA\u0303': u'\u1EC4', u'\u00D4\u0303': u'\u1ED6', u'\u00E2\u0303': u'\u1EAB',
+    u'\u00EA\u0303': u'\u1EC5', u'\u00F4\u0303': u'\u1ED7', u'\u0102\u0303': u'\u1EB4', u'\u0103\u0303': u'\u1EB5',
+    u'\u01A0\u0303': u'\u1EE0', u'\u01A1\u0303': u'\u1EE1', u'\u01AF\u0303': u'\u1EEE', u'\u01B0\u0303': u'\u1EEF',
 
-	u'\u0041\u0309':u'\u1EA2', u'\u0045\u0309':u'\u1EBA', u'\u0049\u0309':u'\u1EC8', u'\u004F\u0309':u'\u1ECE', 
-	u'\u0055\u0309':u'\u1EE6', u'\u0059\u0309':u'\u1EF6', u'\u0061\u0309':u'\u1EA3', u'\u0065\u0309':u'\u1EBB', 
-	u'\u0069\u0309':u'\u1EC9', u'\u006F\u0309':u'\u1ECF', u'\u0075\u0309':u'\u1EE7', u'\u0079\u0309':u'\u1EF7', 
-	u'\u00C2\u0309':u'\u1EA8', u'\u00CA\u0309':u'\u1EC2', u'\u00D4\u0309':u'\u1ED4', u'\u00E2\u0309':u'\u1EA9', 
-	u'\u00EA\u0309':u'\u1EC3', u'\u00F4\u0309':u'\u1ED5', u'\u0102\u0309':u'\u1EB2', u'\u0103\u0309':u'\u1EB3', 
-	u'\u01A0\u0309':u'\u1EDE', u'\u01A1\u0309':u'\u1EDF', u'\u01AF\u0309':u'\u1EEC', u'\u01B0\u0309':u'\u1EED', 
+    u'\u0041\u0309': u'\u1EA2', u'\u0045\u0309': u'\u1EBA', u'\u0049\u0309': u'\u1EC8', u'\u004F\u0309': u'\u1ECE',
+    u'\u0055\u0309': u'\u1EE6', u'\u0059\u0309': u'\u1EF6', u'\u0061\u0309': u'\u1EA3', u'\u0065\u0309': u'\u1EBB',
+    u'\u0069\u0309': u'\u1EC9', u'\u006F\u0309': u'\u1ECF', u'\u0075\u0309': u'\u1EE7', u'\u0079\u0309': u'\u1EF7',
+    u'\u00C2\u0309': u'\u1EA8', u'\u00CA\u0309': u'\u1EC2', u'\u00D4\u0309': u'\u1ED4', u'\u00E2\u0309': u'\u1EA9',
+    u'\u00EA\u0309': u'\u1EC3', u'\u00F4\u0309': u'\u1ED5', u'\u0102\u0309': u'\u1EB2', u'\u0103\u0309': u'\u1EB3',
+    u'\u01A0\u0309': u'\u1EDE', u'\u01A1\u0309': u'\u1EDF', u'\u01AF\u0309': u'\u1EEC', u'\u01B0\u0309': u'\u1EED',
 
-	u'\u0041\u0323':u'\u1EA0', u'\u0045\u0323':u'\u1EB8', u'\u0049\u0323':u'\u1ECA', u'\u004F\u0323':u'\u1ECC', 
-	u'\u0055\u0323':u'\u1EE4', u'\u0059\u0323':u'\u1EF4', u'\u0061\u0323':u'\u1EA1', u'\u0065\u0323':u'\u1EB9', 
-	u'\u0069\u0323':u'\u1ECB', u'\u006F\u0323':u'\u1ECD', u'\u0075\u0323':u'\u1EE5', u'\u0079\u0323':u'\u1EF5', 
-	u'\u00C2\u0323':u'\u1EAC', u'\u00CA\u0323':u'\u1EC6', u'\u00D4\u0323':u'\u1ED8', u'\u00E2\u0323':u'\u1EAD', 
-	u'\u00EA\u0323':u'\u1EC7', u'\u00F4\u0323':u'\u1ED9', u'\u0102\u0323':u'\u1EB6', u'\u0103\u0323':u'\u1EB7', 
-	u'\u01A0\u0323':u'\u1EE2', u'\u01A1\u0323':u'\u1EE3', u'\u01AF\u0323':u'\u1EF0', u'\u01B0\u0323':u'\u1EF1', 
+    u'\u0041\u0323': u'\u1EA0', u'\u0045\u0323': u'\u1EB8', u'\u0049\u0323': u'\u1ECA', u'\u004F\u0323': u'\u1ECC',
+    u'\u0055\u0323': u'\u1EE4', u'\u0059\u0323': u'\u1EF4', u'\u0061\u0323': u'\u1EA1', u'\u0065\u0323': u'\u1EB9',
+    u'\u0069\u0323': u'\u1ECB', u'\u006F\u0323': u'\u1ECD', u'\u0075\u0323': u'\u1EE5', u'\u0079\u0323': u'\u1EF5',
+    u'\u00C2\u0323': u'\u1EAC', u'\u00CA\u0323': u'\u1EC6', u'\u00D4\u0323': u'\u1ED8', u'\u00E2\u0323': u'\u1EAD',
+    u'\u00EA\u0323': u'\u1EC7', u'\u00F4\u0323': u'\u1ED9', u'\u0102\u0323': u'\u1EB6', u'\u0103\u0323': u'\u1EB7',
+    u'\u01A0\u0323': u'\u1EE2', u'\u01A1\u0323': u'\u1EE3', u'\u01AF\u0323': u'\u1EF0', u'\u01B0\u0323': u'\u1EF1',
 }
-re_vietnamese = re.compile(u'[AEIOUYaeiouy\u00C2\u00CA\u00D4\u00E2\u00EA\u00F4\u0102\u0103\u01A0\u01A1\u01AF\u01B0][\u0300\u0301\u0303\u0309\u0323]')
+re_vietnamese = re.compile(
+    u'[AEIOUYaeiouy\u00C2\u00CA\u00D4\u00E2\u00EA\u00F4\u0102\u0103\u01A0\u01A1\u01AF\u01B0][\u0300\u0301\u0303\u0309\u0323]')
 re_latin_cont = re.compile(u'([a-z\u00e0-\u024f])\\1{2,}')
 re_symbol_cont = re.compile(u'([^a-z\u00e0-\u024f])\\1{1,}')
+
+
 def normalize_text(org):
     m = re.match(r'([-A-Za-z]+)\t(.+)', org)
     if m:
@@ -260,13 +273,13 @@ def normalize_text(org):
     s = re.sub(u'  +', ' ', s)
 
     # vietnamese normalization
-    s = re_vietnamese.sub(lambda x:vietnamese_norm[x.group(0)], s)
+    s = re_vietnamese.sub(lambda x: vietnamese_norm[x.group(0)], s)
 
     # lower case with Turkish
-    s = re_ignore_i.sub(lambda x:x.group(0).lower(), s)
-    #if re_turkish_alphabet.search(s):
+    s = re_ignore_i.sub(lambda x: x.group(0).lower(), s)
+    # if re_turkish_alphabet.search(s):
     #    s = s.replace(u'I', u'\u0131')
-    #s = s.lower()
+    # s = s.lower()
 
     # Romanian normalization
     s = s.replace(u'\u0219', u'\u015f').replace(u'\u021b', u'\u0163')
@@ -283,11 +296,11 @@ def load_corpus(filelist, labels):
     idlist = dict((x, []) for x in labels)
     corpus = []
     for filename in filelist:
-        f = codecs.open(filename, 'rb',  'utf-8')
+        f = codecs.open(filename, 'rb', 'utf-8')
         for i, s in enumerate(f):
             label, text, org_text = normalize_text(s)
             if label not in labels:
-                sys.exit("unknown label '%s' at %d in %s " % (label, i+1, filename))
+                sys.exit("unknown label '%s' at %d in %s " % (label, i + 1, filename))
             idlist[label].append(len(corpus))
             corpus.append((label, text, org_text))
         f.close()
@@ -307,12 +320,23 @@ def shuffle(idlist):
     return list
 
 
-
 # prediction probability
 def predict(param, events):
-    sum_w = numpy.dot(param[events.keys(),].T, events.values())
+    names = ['id', 'data']
+    formats = ['f8', 'f8']
+    dtype = dict(names=names, formats=formats)
+    res1 = list(events.keys())
+    arr = numpy.asarray(res1)  # numpy.fromiter(res1.iteritems(), dtype=dtype, count=len(res1))
+    array = arr.astype(int)
+    res2 = list(events.values())
+    valuesA = numpy.asarray(res2)  # numpy.fromiter(res2.iteritems(), dtype=dtype, count=len(res2))
+
+    sum_w = numpy.dot(param[array,].T, valuesA)
     exp_w = numpy.exp(sum_w - sum_w.max())
     return exp_w / exp_w.sum()
+    # sum_w = numpy.dot(param[events.keys(),].T, events.values())
+    # exp_w = numpy.exp(sum_w - sum_w.max())
+    # return exp_w / exp_w.sum()
 
 
 # inference and learning
@@ -354,7 +378,7 @@ def inference(param, labels, corpus, idlist, trie, options):
         if options.reg_const:
             indexes = events
             if (N - m) % WHOLE_REG_INT == 1:
-                print "full regularization: %d / %d" % (m, N)
+                print("full regularization: %d / %d" % (m, N))
                 indexes = xrange(M)
             for id in indexes:
                 prm = param[id]
@@ -385,10 +409,10 @@ def inference(param, labels, corpus, idlist, trie, options):
 
     for lbl, crct, cnt in zip(labels, corrects, counts):
         if cnt > 0:
-            print ">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt)
-    print "> total = %d / %d = %.2f" % (corrects.sum(), N, 100.0 * corrects.sum() / N)
+            print(">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt))
+    print("> total = %d / %d = %.2f" % (corrects.sum(), N, 100.0 * corrects.sum() / N))
     list = (numpy.abs(param).sum(1) > 0.0000001)
-    print "> # of relevant features = %d / %d" % (list.sum(), M)
+    print("> # of relevant features = %d / %d" % (list.sum(), M))
 
 
 def likelihood(param, labels, trie, filelist, options):
@@ -400,50 +424,62 @@ def likelihood(param, labels, trie, filelist, options):
 
     n_available_data = 0
     log_likely = 0.0
-    for filename in filelist:
-        f = codecs.open(filename, 'rb',  'utf-8')
-        for i, s in enumerate(f):
-            label, text, org_text = normalize_text(s)
+    #for filename in filelist:
+        #f = codecs.open(filename, 'rb', 'utf-8')
+    #for i, s in enumerate(filelist):
+    label, text, org_text = normalize_text(filelist)
 
-            if label not in label_map:
-                sys.stderr.write("WARNING : unknown label '%s' at %d in %s (ignore the later same labels)\n" % (label, i+1, filename))
-                label_map[label] = -1
-            label_k = label_map[label]
+    if label not in label_map:
+        #sys.stderr.write("WARNING : unknown label '%s' at %d in %s (ignore the later same labels)\n" % (
+         #   label, 1, filelist))
+        label_map[label] = -1
+    label_k = label_map[label]
 
-            events = trie.extract_features(u"\u0001" + text + u"\u0001")
-            y = predict(param, events)
-            predict_k = y.argmax()
+    events = trie.extract_features(u"\u0001" + text + u"\u0001")
+    y = predict(param, events)
+    predict_k = y.argmax()
 
-            if label_k >= 0:
-                log_likely -= numpy.log(y[label_k])
-                n_available_data += 1
-                counts[label_k] += 1
-                if label_k == predict_k and y[predict_k] >= 0.6:
-                    corrects[predict_k] += 1
+    if label_k >= 0:
+        log_likely -= numpy.log(y[label_k])
+        n_available_data += 1
+        counts[label_k] += 1
+        if label_k == predict_k and y[predict_k] >= 0.6:
+            corrects[predict_k] += 1
 
-            predict_lang = labels[predict_k]
-            if y[predict_k] < 0.6: predict_lang = ""
-            print "%s\t%s\t%s" % (label, predict_lang, org_text)
-        f.close()
+    predict_lang = labels[predict_k]
+    if y[predict_k] < 0.6: predict_lang = ""
+    #print("%s\t%s\t%s" % (label, predict_lang, org_text))
+    #print(str(label,'utf-8'))
+    #print(predict_lang)
+    #print(org_text)
+    #print('{0}\{1}\{2}'.format(label, predict_lang, org_text))
+    ss = bytes(predict_lang, 'utf-8')
+
+    #print(predict_lang.decode('utf-8'))
+    #pp = ss.decode("utf-8")
+    #ppp = str(ss, "utf-8")
+    #print(ppp)
+    #sys.stdout.buffer.write(bytes(label, 'utf-8')+ bytes(" ", 'utf-8') + ss + bytes(" ", 'utf-8') + bytes(org_text,
+    # 'utf-8') +  bytes("\n", 'utf-8'))
+    #f.close()
 
     if n_available_data > 0:
         log_likely /= n_available_data
 
         for lbl, crct, cnt in zip(labels, corrects, counts):
             if cnt > 0:
-                print ">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt)
-        print "> total = %d / %d = %.2f" % (corrects.sum(), n_available_data, 100.0 * corrects.sum() / n_available_data)
-        print "> average negative log likelihood = %.3f" % log_likely
-
-    return log_likely
+                print(">    %s = %d / %d = %.2f" % (lbl, crct, cnt, 100.0 * crct / cnt))
+        #print("> total = %d / %d = %.2f" % (corrects.sum(), n_available_data, 100.0 * corrects.sum(n_available_data))
+        #print("> average negative log likelihood = %.3f" % log_likely)
+    #sss = str(log_likely, 'utf-8')
+  #  print("{0}".format(type(log_likely)))
+    return predict_lang
 
 
 def generate_doublearray(file, features):
     trie = da.DoubleArray()
     trie.initialize(features)
     trie.save(file)
-
-
 
 
 if __name__ == '__main__':
@@ -457,8 +493,10 @@ if __name__ == '__main__':
     parser.add_option("--debug", dest="debug", help="detect command line text for debug", action="store_true")
 
     # for initialization
-    parser.add_option("--ff", dest="bound_feature_freq", help="threshold of feature frequency (for initialization)", type="int", default=8)
-    parser.add_option("-n", dest="ngram_bound", help="n-gram upper bound (for initialization)", type="int", default=99999)
+    parser.add_option("--ff", dest="bound_feature_freq", help="threshold of feature frequency (for initialization)",
+                      type="int", default=8)
+    parser.add_option("-n", dest="ngram_bound", help="n-gram upper bound (for initialization)", type="int",
+                      default=99999)
     parser.add_option("-x", dest="maxsubst", help="max substring extractor", default="./maxsubst")
 
     # for learning
@@ -468,7 +506,6 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
     if not options.model: parser.error("need model directory (-m)")
-
 
     detector = ldig(options.model)
     if options.init:
@@ -483,7 +520,6 @@ if __name__ == '__main__':
             parser.error("labels file doesn't exist")
         if not os.path.exists(detector.param):
             parser.error("parameters file doesn't exist")
-
 
     if options.init:
         temp_path = os.path.join(options.model, 'temp')
@@ -500,7 +536,6 @@ if __name__ == '__main__':
 
     else:
         detector.detect(options, args)
-        #import cProfile
-        #cProfile.runctx('detector.detect(options, args)', globals(), locals(), 'ldig.profile')
-
+        # import cProfile
+        # cProfile.runctx('detector.detect(options, args)', globals(), locals(), 'ldig.profile')
 
